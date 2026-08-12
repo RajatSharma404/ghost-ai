@@ -238,3 +238,5 @@ detailed explanations, cool features, and exercises to boost your skills. Give i
 <a href="https://jsm.dev/ghost-jsm" target="_blank">
   <img src="public/readme/readme-jsmpro.webp" alt="Project Banner">
 </a>
+#   g h o s t - a i  
+ 
