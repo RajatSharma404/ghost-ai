@@ -3,10 +3,10 @@
 Update this file whenever the current phase, active feature, or implementation state changes.
 
 ## Current Phase
-- Feature 28 (Spec Persistence & Download) — complete
+- All Features 01 to 29 (Design System through Spec UI Integration) — complete
 
 ## Current Goal
-- Feature 29 (TBD)
+- All core features and spec units implemented and verified.
 
 ## Completed
 
