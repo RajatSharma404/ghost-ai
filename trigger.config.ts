@@ -1,7 +1,7 @@
-import { defineConfig } from "@trigger.dev/sdk/v3";
+import { defineConfig } from "@trigger.dev/sdk";
 
 export default defineConfig({
-  project: process.env.TRIGGER_PROJECT_REF!,
+  project: process.env.TRIGGER_PROJECT_REF ?? "proj_uowwejqgedjuhanakrmx",
   runtime: 'node',
   dirs: ["trigger"],
   maxDuration: 3600,

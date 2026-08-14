@@ -1,4 +1,4 @@
-import { task } from "@trigger.dev/sdk/v3";
+import { task } from "@trigger.dev/sdk";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText, tool } from "ai";
 import { z } from "zod";
@@ -158,7 +158,9 @@ export const designAgent = task({
   retry: { maxAttempts: 2 },
   run: async (payload: { prompt: string; roomId: string; userId: string }) => {
     const lb = getLiveblocks();
-    const google = createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_AI_API_KEY });
+    const google = createGoogleGenerativeAI({
+      apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GOOGLE_AI_API_KEY,
+    });
 
     await lb
       .setPresence(payload.roomId, {
@@ -181,9 +183,8 @@ export const designAgent = task({
       let canvasContext = "The canvas is currently empty — create a fresh design.";
       try {
         const doc = await lb.getStorageDocument(payload.roomId, "json");
-        const flow = (doc as Record<string, unknown>)?.flow as
-          | Record<string, unknown>
-          | undefined;
+        const parsed = typeof doc === "string" ? (JSON.parse(doc) as Record<string, unknown>) : (doc as Record<string, unknown>);
+        const flow = parsed?.flow as Record<string, unknown> | undefined;
         const nodeCount = flow?.nodes ? Object.keys(flow.nodes as object).length : 0;
         if (nodeCount > 0) {
           canvasContext = `Canvas has ${nodeCount} existing node(s). Current state:\n${JSON.stringify(flow, null, 2)}\nExtend or modify based on the request; only clear if explicitly asked.`;
@@ -192,8 +193,9 @@ export const designAgent = task({
         // No storage yet — treat as empty
       }
 
+      const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
       const result = await generateText({
-        model: google("gemini-2.5-flash"),
+        model: google(modelName),
         system: buildSystemPrompt(),
         prompt: `User request: ${payload.prompt}\n\n${canvasContext}`,
         tools: canvasTools,
@@ -214,7 +216,7 @@ export const designAgent = task({
           message: `Placing ${addCount} node${addCount !== 1 ? "s" : ""} on the canvas…`,
           status: "thinking",
         })
-        .catch(() => {});
+        .catch(() => { });
 
       await lb.mutateStorage(payload.roomId, ({ root }) => {
         const flow = root.get("flow");
@@ -233,7 +235,7 @@ export const designAgent = task({
           message: summary,
           status: "complete",
         })
-        .catch(() => {});
+        .catch(() => { });
 
       return { success: true, actionsApplied: actionCalls.length, summary };
     } catch (error) {
@@ -243,7 +245,7 @@ export const designAgent = task({
           message: "Ghost AI encountered an error. Please try again.",
           status: "error",
         })
-        .catch(() => {});
+        .catch(() => { });
       throw error;
     } finally {
       await lb
@@ -253,7 +255,7 @@ export const designAgent = task({
           userInfo: AI_USER_INFO,
           ttl: 3_000,
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   },
 });

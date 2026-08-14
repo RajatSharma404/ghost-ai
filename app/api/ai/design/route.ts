@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
-import { tasks } from "@trigger.dev/sdk/v3"
+import { tasks } from "@trigger.dev/sdk"
 import type { designAgent } from "@/trigger/design-agent"
 
 export async function POST(request: Request) {
