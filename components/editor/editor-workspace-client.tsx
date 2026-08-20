@@ -57,6 +57,7 @@ export function EditorWorkspaceClient({
             onToggleAiSidebar={() => setAiSidebarOpen((prev) => !prev)}
             onOpenShareDialog={() => setShareDialogOpen(true)}
             onOpenTemplates={() => setTemplatesOpen(true)}
+            onOpenExportDialog={() => window.dispatchEvent(new CustomEvent("open-export-dialog"))}
             saveStatus={saveStatus}
             onSave={() => saveFnRef.current()}
           />

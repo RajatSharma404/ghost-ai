@@ -26,10 +26,13 @@ import { CanvasControls } from "@/components/editor/canvas/canvas-controls"
 import { PresenceCursors } from "@/components/editor/canvas/presence-cursors"
 import { CollaboratorAvatars } from "@/components/editor/canvas/collaborator-avatars"
 import { NodeMetadataDrawer } from "@/components/editor/canvas/node-metadata-drawer"
+import { PinnedComments } from "@/components/editor/canvas/pinned-comments"
+import { DiagramExportDialog } from "@/components/editor/canvas/diagram-export-dialog"
 import { computeAutoLayout, type LayoutDirection } from "@/lib/auto-layout"
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts"
 import type { CanvasTemplate } from "@/components/editor/starter-templates"
 import { useCanvasAutosave, type SaveStatus } from "@/hooks/use-canvas-autosave"
+import { cn } from "@/lib/utils"
 
 const nodeTypes = {
   canvasNode: CanvasNodeComponent,
@@ -265,17 +268,28 @@ export function CanvasEditor({ projectId, pendingTemplate, onTemplateImported, o
   const [simulationSpeed, setSimulationSpeed] = useState<number>(1)
   const [metadataDrawerOpen, setMetadataDrawerOpen] = useState(false)
   const [activeMetadataNodeId, setActiveMetadataNodeId] = useState<string | null>(null)
+  const [isPlacingComment, setIsPlacingComment] = useState(false)
+  const [exportDialogOpen, setExportDialogOpen] = useState(false)
 
   useEffect(() => {
-    const handler = (e: Event) => {
+    const nodeConfigHandler = (e: Event) => {
       const customEvent = e as CustomEvent<{ id: string }>
       if (customEvent.detail?.id) {
         setActiveMetadataNodeId(customEvent.detail.id)
         setMetadataDrawerOpen(true)
       }
     }
-    window.addEventListener("open-node-metadata", handler)
-    return () => window.removeEventListener("open-node-metadata", handler)
+
+    const exportDialogHandler = () => {
+      setExportDialogOpen(true)
+    }
+
+    window.addEventListener("open-node-metadata", nodeConfigHandler)
+    window.addEventListener("open-export-dialog", exportDialogHandler)
+    return () => {
+      window.removeEventListener("open-node-metadata", nodeConfigHandler)
+      window.removeEventListener("open-export-dialog", exportDialogHandler)
+    }
   }, [])
 
   const applyAutoLayoutMutation = useMutation(
@@ -341,7 +355,10 @@ export function CanvasEditor({ projectId, pendingTemplate, onTemplateImported, o
   return (
     <div
       ref={wrapperRef}
-      className="relative h-full w-full"
+      className={cn(
+        "relative h-full w-full",
+        isPlacingComment && "cursor-crosshair"
+      )}
       onDragOver={onDragOver}
       onDrop={onDrop}
       onMouseMove={onMouseMove}
@@ -380,10 +397,16 @@ export function CanvasEditor({ projectId, pendingTemplate, onTemplateImported, o
         simulationSpeed={simulationSpeed}
         onCycleSpeed={cycleSpeed}
         onAutoLayout={handleAutoLayout}
+        isPlacingComment={isPlacingComment}
+        onTogglePlaceComment={() => setIsPlacingComment((prev) => !prev)}
       />
       <ShapePanel />
       <PresenceCursors />
       <CollaboratorAvatars />
+      <PinnedComments
+        isPlacingComment={isPlacingComment}
+        onCommentPlaced={() => setIsPlacingComment(false)}
+      />
       <NodeMetadataDrawer
         open={metadataDrawerOpen && Boolean(activeMetadataNodeId)}
         onClose={() => setMetadataDrawerOpen(false)}
@@ -395,6 +418,13 @@ export function CanvasEditor({ projectId, pendingTemplate, onTemplateImported, o
             saveNodeMetadataMutation(activeMetadataNodeId, meta)
           }
         }}
+      />
+      <DiagramExportDialog
+        open={exportDialogOpen}
+        onOpenChange={setExportDialogOpen}
+        nodes={nodes}
+        edges={edges}
+        projectName={projectId}
       />
       <SaveStatusIndicator status={saveStatus} />
     </div>

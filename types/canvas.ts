@@ -161,3 +161,25 @@ export type CanvasRegularNode = Node<CanvasNodeData, "canvasNode">
 export type CanvasGroupNode = Node<GroupNodeData, "groupNode">
 export type CanvasNode = CanvasRegularNode | CanvasGroupNode
 export type CanvasEdge = Edge<CanvasEdgeData, "canvasEdge">
+
+export interface CommentMessage {
+  id: string
+  authorId: string
+  authorName: string
+  authorAvatar?: string
+  authorColor?: string
+  content: string
+  createdAt: number
+  [key: string]: string | number | boolean | undefined
+}
+
+export interface CommentThread {
+  id: string
+  x: number
+  y: number
+  nodeId?: string
+  resolved: boolean
+  createdAt: number
+  messages: CommentMessage[]
+  [key: string]: string | number | boolean | CommentMessage[] | undefined
+}

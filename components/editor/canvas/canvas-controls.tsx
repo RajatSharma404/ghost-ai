@@ -11,6 +11,7 @@ import {
   Workflow,
   ArrowRight,
   ArrowDown,
+  MessageSquare,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { LayoutDirection } from "@/lib/auto-layout"
@@ -28,6 +29,8 @@ interface CanvasControlsProps {
   simulationSpeed?: number
   onCycleSpeed?: () => void
   onAutoLayout?: (direction: LayoutDirection) => void
+  isPlacingComment?: boolean
+  onTogglePlaceComment?: () => void
 }
 
 export function CanvasControls({
@@ -43,6 +46,8 @@ export function CanvasControls({
   simulationSpeed = 1,
   onCycleSpeed,
   onAutoLayout,
+  isPlacingComment = false,
+  onTogglePlaceComment,
 }: CanvasControlsProps) {
   const [layoutMenuOpen, setLayoutMenuOpen] = useState(false)
 
@@ -121,6 +126,28 @@ export function CanvasControls({
               </div>
             )}
           </div>
+        </>
+      )}
+
+      {onTogglePlaceComment && (
+        <>
+          <div className="mx-1 h-4 w-px bg-border-default" />
+
+          {/* Add Comment Pin Toggle */}
+          <button
+            type="button"
+            onClick={onTogglePlaceComment}
+            title={isPlacingComment ? "Cancel Comment Placement (Esc)" : "Add Comment Pin (C)"}
+            className={cn(
+              "flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium transition-all",
+              isPlacingComment
+                ? "bg-accent-ai/20 text-accent-ai-text border border-accent-ai/40 shadow-xs shadow-accent-ai/20"
+                : "text-text-muted hover:bg-bg-elevated hover:text-text-primary"
+            )}
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+            <span>{isPlacingComment ? "Placing Pin" : "Comment"}</span>
+          </button>
         </>
       )}
 
