@@ -1,6 +1,6 @@
 "use client"
 
-import { LayoutTemplate, PanelLeftClose, PanelLeftOpen, Save, Share2, Sparkles, Download } from "lucide-react"
+import { LayoutTemplate, PanelLeftClose, PanelLeftOpen, Save, Share2, Sparkles, Download, History } from "lucide-react"
 import { UserButton } from "@clerk/nextjs"
 import { Button } from "@/components/ui/button"
 import type { SaveStatus } from "@/hooks/use-canvas-autosave"
@@ -14,6 +14,7 @@ interface EditorNavbarProps {
   onOpenShareDialog?: () => void
   onOpenTemplates?: () => void
   onOpenExportDialog?: () => void
+  onOpenHistoryDialog?: () => void
   saveStatus?: SaveStatus
   onSave?: () => void
 }
@@ -27,6 +28,7 @@ export function EditorNavbar({
   onOpenShareDialog,
   onOpenTemplates,
   onOpenExportDialog,
+  onOpenHistoryDialog,
   saveStatus,
   onSave,
 }: EditorNavbarProps) {
@@ -80,6 +82,17 @@ export function EditorNavbar({
               >
                 <LayoutTemplate className="h-4 w-4" />
                 Templates
+              </Button>
+            ) : null}
+            {onOpenHistoryDialog ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={onOpenHistoryDialog}
+              >
+                <History className="h-4 w-4" />
+                History
               </Button>
             ) : null}
             {onOpenShareDialog ? (

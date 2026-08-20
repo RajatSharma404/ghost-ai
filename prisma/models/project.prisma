@@ -10,11 +10,13 @@ model Project {
   description    String?
   status         ProjectStatus @default(DRAFT)
   canvasBlobUrl  String?
+  isPublic       Boolean       @default(false)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
   collaborators ProjectCollaborator[]
   specs         ProjectSpec[]
+  snapshots     ProjectSnapshot[]
 
   @@index([ownerId])
   @@index([createdAt])
@@ -52,5 +54,21 @@ model ProjectCollaborator {
 
   @@unique([projectId, email])
   @@index([email])
+  @@index([projectId, createdAt])
+}
+
+model ProjectSnapshot {
+  id            String   @id @default(cuid())
+  projectId     String
+  name          String
+  description   String?
+  blobUrl       String
+  nodeCount     Int      @default(0)
+  edgeCount     Int      @default(0)
+  createdByName String?
+  createdAt     DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
   @@index([projectId, createdAt])
 }

@@ -28,6 +28,7 @@ import { CollaboratorAvatars } from "@/components/editor/canvas/collaborator-ava
 import { NodeMetadataDrawer } from "@/components/editor/canvas/node-metadata-drawer"
 import { PinnedComments } from "@/components/editor/canvas/pinned-comments"
 import { DiagramExportDialog } from "@/components/editor/canvas/diagram-export-dialog"
+import { VersionHistoryDialog } from "@/components/editor/canvas/version-history-dialog"
 import { computeAutoLayout, type LayoutDirection } from "@/lib/auto-layout"
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts"
 import type { CanvasTemplate } from "@/components/editor/starter-templates"
@@ -270,6 +271,7 @@ export function CanvasEditor({ projectId, pendingTemplate, onTemplateImported, o
   const [activeMetadataNodeId, setActiveMetadataNodeId] = useState<string | null>(null)
   const [isPlacingComment, setIsPlacingComment] = useState(false)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false)
 
   useEffect(() => {
     const nodeConfigHandler = (e: Event) => {
@@ -284,13 +286,38 @@ export function CanvasEditor({ projectId, pendingTemplate, onTemplateImported, o
       setExportDialogOpen(true)
     }
 
+    const historyDialogHandler = () => {
+      setHistoryDialogOpen(true)
+    }
+
     window.addEventListener("open-node-metadata", nodeConfigHandler)
     window.addEventListener("open-export-dialog", exportDialogHandler)
+    window.addEventListener("open-history-dialog", historyDialogHandler)
     return () => {
       window.removeEventListener("open-node-metadata", nodeConfigHandler)
       window.removeEventListener("open-export-dialog", exportDialogHandler)
+      window.removeEventListener("open-history-dialog", historyDialogHandler)
     }
   }, [])
+
+  const handleRestoreSnapshot = useCallback(
+    (restoredNodes: CanvasNode[], restoredEdges: CanvasEdge[]) => {
+      const currentNodes = nodesRef.current
+      const currentEdges = edgesRef.current
+
+      onNodesChange([
+        ...currentNodes.map((nd) => ({ type: "remove" as const, id: nd.id })),
+        ...restoredNodes.map((nd) => ({ type: "add" as const, item: nd })),
+      ])
+      onEdgesChange([
+        ...currentEdges.map((ed) => ({ type: "remove" as const, id: ed.id })),
+        ...restoredEdges.map((ed) => ({ type: "add" as const, item: ed })),
+      ])
+
+      setTimeout(() => fitView({ duration: 400 }), 100)
+    },
+    [onNodesChange, onEdgesChange, fitView]
+  )
 
   const applyAutoLayoutMutation = useMutation(
     ({ storage }, newPositions: Array<{ id: string; position: { x: number; y: number } }>) => {
@@ -425,6 +452,14 @@ export function CanvasEditor({ projectId, pendingTemplate, onTemplateImported, o
         nodes={nodes}
         edges={edges}
         projectName={projectId}
+      />
+      <VersionHistoryDialog
+        projectId={projectId}
+        open={historyDialogOpen}
+        onOpenChange={setHistoryDialogOpen}
+        currentNodes={nodes}
+        currentEdges={edges}
+        onRestoreSnapshot={handleRestoreSnapshot}
       />
       <SaveStatusIndicator status={saveStatus} />
     </div>
