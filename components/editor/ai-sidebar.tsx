@@ -29,9 +29,17 @@ import {
   HardDrive,
   Globe,
   Cpu,
+  GitFork,
+  FileCode,
 } from "lucide-react"
 import type { AuditReport } from "@/trigger/audit-architecture"
 import type { CostReport } from "@/trigger/estimate-cost"
+import type {
+  AlternativesReport,
+  AlternativeArchitecture,
+} from "@/trigger/suggest-alternatives"
+import type { ApiScaffoldResult } from "@/trigger/generate-api-scaffold"
+import { LiveObject } from "@liveblocks/client"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -50,6 +58,7 @@ import {
   useCreateFeedMessage,
   useSelf,
   useStorage,
+  useMutation,
 } from "@liveblocks/react"
 import { useRealtimeRun } from "@trigger.dev/react-hooks"
 import { AiStatusFeedMessageSchema, ChatFeedMessageSchema } from "@/types/tasks"
@@ -186,6 +195,23 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
   const [costRunId, setCostRunId] = useState<string | null>(null)
   const [costPublicToken, setCostPublicToken] = useState<string | null>(null)
   const [costReport, setCostReport] = useState<CostReport | null>(null)
+
+  // Alternatives state
+  const [isAlternativesGenerating, setIsAlternativesGenerating] = useState(false)
+  const [alternativesRunId, setAlternativesRunId] = useState<string | null>(null)
+  const [alternativesPublicToken, setAlternativesPublicToken] = useState<string | null>(null)
+  const [alternativesReport, setAlternativesReport] = useState<AlternativesReport | null>(null)
+  const [appliedAlternativeId, setAppliedAlternativeId] = useState<string | null>(null)
+
+  // API Scaffold state
+  const [apiFramework, setApiFramework] = useState<"nextjs" | "fastapi" | "express">("nextjs")
+  const [isScaffoldGenerating, setIsScaffoldGenerating] = useState(false)
+  const [scaffoldRunId, setScaffoldRunId] = useState<string | null>(null)
+  const [scaffoldPublicToken, setScaffoldPublicToken] = useState<string | null>(null)
+  const [scaffoldResult, setScaffoldResult] = useState<ApiScaffoldResult | null>(null)
+  const [scaffoldModalOpen, setScaffoldModalOpen] = useState(false)
+  const [scaffoldModalTab, setScaffoldModalTab] = useState<"openapi" | "routes">("openapi")
+  const [scaffoldCopied, setScaffoldCopied] = useState(false)
 
   // Canvas storage for spec generation context
   // useStorage immutably serializes LiveMap as a plain readonly object, so use Object.values
@@ -537,6 +563,212 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
     URL.revokeObjectURL(url)
   }, [costReport])
 
+  // Alternatives Handlers
+  const handleAlternativesRunTerminal = useCallback(
+    (status: string, output: unknown) => {
+      setIsAlternativesGenerating(false)
+      setAlternativesRunId(null)
+      setAlternativesPublicToken(null)
+      if (status === "COMPLETED" && output) {
+        setAlternativesReport(output as AlternativesReport)
+      }
+    },
+    []
+  )
+
+  const handleSuggestAlternatives = useCallback(async () => {
+    if (isAlternativesGenerating) return
+    setIsAlternativesGenerating(true)
+
+    const nodes = nodesArray ?? []
+    const edges = edgesArray ?? []
+    const chatHistory = validatedChatMessages.map((msg) => ({
+      role: msg.role,
+      content: msg.content,
+    }))
+
+    try {
+      const res = await fetch("/api/ai/alternatives", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roomId, chatHistory, nodes, edges }),
+      })
+      if (!res.ok) throw new Error("Alternatives request failed")
+      const { runId: newAltRunId } = (await res.json()) as { runId: string }
+
+      const tokenRes = await fetch("/api/ai/alternatives/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ runId: newAltRunId }),
+      })
+      if (!tokenRes.ok) throw new Error("Token request failed")
+      const { token } = (await tokenRes.json()) as { token: string }
+
+      setAlternativesRunId(newAltRunId)
+      setAlternativesPublicToken(token)
+    } catch {
+      setIsAlternativesGenerating(false)
+    }
+  }, [isAlternativesGenerating, roomId, nodesArray, edgesArray, validatedChatMessages])
+
+  const applyAlternativeToCanvas = useMutation(
+    ({ storage }, alt: AlternativeArchitecture) => {
+      const flow = storage.get("flow")
+      if (!flow) return
+      const nodesMap = flow.get("nodes")
+      const edgesMap = flow.get("edges")
+
+      // Clear existing nodes and edges
+      for (const key of Array.from(nodesMap.keys())) {
+        nodesMap.delete(key)
+      }
+      for (const key of Array.from(edgesMap.keys())) {
+        edgesMap.delete(key)
+      }
+
+      // Add new nodes
+      for (const node of alt.nodes) {
+        nodesMap.set(
+          node.id,
+          new LiveObject({
+            id: node.id,
+            type: node.type || "canvasNode",
+            position: new LiveObject(node.position),
+            data: new LiveObject({
+              label: node.data.label,
+              shape: node.data.shape || "rectangle",
+              color: node.data.color || "#1F1F1F",
+              textColor: node.data.textColor || "#EDEDED",
+            }),
+          }) as unknown as Parameters<typeof nodesMap.set>[1]
+        )
+      }
+
+      // Add new edges
+      for (const edge of alt.edges) {
+        edgesMap.set(
+          edge.id,
+          new LiveObject({
+            id: edge.id,
+            source: edge.source,
+            target: edge.target,
+            type: "canvasEdge",
+            data: new LiveObject({
+              label: edge.data?.label || "",
+            }),
+          }) as unknown as Parameters<typeof edgesMap.set>[1]
+        )
+      }
+    },
+    []
+  )
+
+  const handleApplyAlternative = useCallback(
+    (alt: AlternativeArchitecture) => {
+      applyAlternativeToCanvas(alt)
+      setAppliedAlternativeId(alt.id)
+      setTimeout(() => setAppliedAlternativeId(null), 2500)
+    },
+    [applyAlternativeToCanvas]
+  )
+
+  // API Scaffold Handlers
+  const handleScaffoldRunTerminal = useCallback(
+    (status: string, output: unknown) => {
+      setIsScaffoldGenerating(false)
+      setScaffoldRunId(null)
+      setScaffoldPublicToken(null)
+      if (status === "COMPLETED" && output) {
+        const typed = output as ApiScaffoldResult
+        setScaffoldResult(typed)
+        setScaffoldModalOpen(true)
+      }
+    },
+    []
+  )
+
+  const handleGenerateScaffold = useCallback(async () => {
+    if (isScaffoldGenerating) return
+    setIsScaffoldGenerating(true)
+
+    const nodes = nodesArray ?? []
+    const edges = edgesArray ?? []
+    const chatHistory = validatedChatMessages.map((msg) => ({
+      role: msg.role,
+      content: msg.content,
+    }))
+
+    try {
+      const res = await fetch("/api/ai/scaffold", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          roomId,
+          framework: apiFramework,
+          chatHistory,
+          nodes,
+          edges,
+        }),
+      })
+      if (!res.ok) throw new Error("Scaffold request failed")
+      const { runId: newScaffoldRunId } = (await res.json()) as { runId: string }
+
+      const tokenRes = await fetch("/api/ai/scaffold/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ runId: newScaffoldRunId }),
+      })
+      if (!tokenRes.ok) throw new Error("Token request failed")
+      const { token } = (await tokenRes.json()) as { token: string }
+
+      setScaffoldRunId(newScaffoldRunId)
+      setScaffoldPublicToken(token)
+    } catch {
+      setIsScaffoldGenerating(false)
+    }
+  }, [isScaffoldGenerating, roomId, apiFramework, nodesArray, edgesArray, validatedChatMessages])
+
+  const handleCopyScaffold = useCallback(() => {
+    if (!scaffoldResult) return
+    const textToCopy =
+      scaffoldModalTab === "openapi"
+        ? scaffoldResult.openapiYaml
+        : scaffoldResult.routesCode
+    navigator.clipboard.writeText(textToCopy).catch(() => {})
+    setScaffoldCopied(true)
+    setTimeout(() => setScaffoldCopied(false), 2000)
+  }, [scaffoldResult, scaffoldModalTab])
+
+  const handleDownloadOpenApi = useCallback(() => {
+    if (!scaffoldResult?.openapiYaml) return
+    const blob = new Blob([scaffoldResult.openapiYaml], {
+      type: "application/x-yaml;charset=utf-8",
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = "openapi.yaml"
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }, [scaffoldResult])
+
+  const handleDownloadRoutesCode = useCallback(() => {
+    if (!scaffoldResult?.routesCode) return
+    const blob = new Blob([scaffoldResult.routesCode], {
+      type: "text/plain;charset=utf-8",
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = scaffoldResult.filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }, [scaffoldResult])
+
   // Receive broadcast status events for real-time strip text
   useEventListener(({ event }) => {
     if (event.type !== "ai-status") return
@@ -762,6 +994,117 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
           onTerminal={handleCostRunTerminal}
         />
       )}
+      {alternativesRunId && alternativesPublicToken && (
+        <RunTracker
+          runId={alternativesRunId}
+          publicToken={alternativesPublicToken}
+          onTerminal={handleAlternativesRunTerminal}
+        />
+      )}
+      {scaffoldRunId && scaffoldPublicToken && (
+        <RunTracker
+          runId={scaffoldRunId}
+          publicToken={scaffoldPublicToken}
+          onTerminal={handleScaffoldRunTerminal}
+        />
+      )}
+
+      {/* API Scaffold & OpenAPI preview modal */}
+      <Dialog
+        open={scaffoldModalOpen}
+        onOpenChange={(open) => {
+          if (!open) setScaffoldModalOpen(false)
+        }}
+      >
+        <DialogContent
+          showCloseButton
+          className="max-w-3xl border-border-default bg-bg-surface"
+        >
+          <DialogHeader>
+            <div className="flex items-center gap-2 pr-6">
+              <FileCode className="h-4 w-4 text-accent-ai-text" />
+              <DialogTitle className="text-sm font-medium text-text-primary">
+                API Scaffolding & OpenAPI 3.0
+              </DialogTitle>
+              {scaffoldResult?.framework && (
+                <span className="rounded-full bg-accent-ai/15 px-2 py-0.5 text-[10px] font-medium uppercase text-accent-ai-text">
+                  {scaffoldResult.framework}
+                </span>
+              )}
+            </div>
+          </DialogHeader>
+
+          <div className="flex gap-2 border-b border-border-subtle pb-2 text-xs">
+            <button
+              type="button"
+              onClick={() => setScaffoldModalTab("openapi")}
+              className={cn(
+                "rounded-lg px-3 py-1 font-medium transition-colors",
+                scaffoldModalTab === "openapi"
+                  ? "bg-accent-ai text-white"
+                  : "text-text-muted hover:text-text-primary"
+              )}
+            >
+              OpenAPI 3.0 YAML
+            </button>
+            <button
+              type="button"
+              onClick={() => setScaffoldModalTab("routes")}
+              className={cn(
+                "rounded-lg px-3 py-1 font-medium transition-colors",
+                scaffoldModalTab === "routes"
+                  ? "bg-accent-ai text-white"
+                  : "text-text-muted hover:text-text-primary"
+              )}
+            >
+              Route Handlers ({scaffoldResult?.filename})
+            </button>
+          </div>
+
+          <ScrollArea className="max-h-[60vh] rounded-xl border border-border-subtle bg-bg-elevated font-mono text-xs">
+            <pre className="overflow-x-auto p-4 leading-relaxed text-text-primary">
+              <code>
+                {scaffoldModalTab === "openapi"
+                  ? scaffoldResult?.openapiYaml
+                  : scaffoldResult?.routesCode}
+              </code>
+            </pre>
+          </ScrollArea>
+
+          <div className="flex justify-end gap-2 border-t border-border-default pt-3">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleCopyScaffold}
+              className="h-7 gap-1.5 rounded-lg border-border-subtle px-3 text-xs text-text-secondary hover:border-border-default hover:text-text-primary"
+            >
+              {scaffoldCopied ? (
+                <Check className="h-3 w-3 text-state-success" />
+              ) : (
+                <Copy className="h-3 w-3" />
+              )}
+              {scaffoldCopied ? "Copied!" : "Copy Active Tab"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleDownloadOpenApi}
+              className="h-7 gap-1.5 rounded-lg border-border-subtle px-3 text-xs text-text-secondary hover:border-border-default hover:text-text-primary"
+            >
+              <Download className="h-3 w-3" />
+              Download openapi.yaml
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleDownloadRoutesCode}
+              className="h-7 gap-1.5 rounded-lg bg-accent-ai px-3 text-xs text-white hover:bg-accent-ai/80"
+            >
+              <Download className="h-3 w-3" />
+              Download {scaffoldResult?.filename}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* IaC preview modal */}
       <Dialog open={iacModalOpen} onOpenChange={(open) => { if (!open) setIacModalOpen(false) }}>
@@ -902,42 +1245,54 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
 
       {/* Tabs */}
       <Tabs defaultValue="architect" className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <TabsList className="mx-4 mt-3 grid grid-cols-6 h-auto shrink-0 rounded-xl bg-bg-subtle p-1">
+        <TabsList className="mx-4 mt-3 flex h-auto shrink-0 overflow-x-auto rounded-xl bg-bg-subtle p-1 scrollbar-none gap-1">
           <TabsTrigger
             value="architect"
-            className="rounded-lg px-1 py-1.5 text-[10px] font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
+            className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
           >
             Architect
           </TabsTrigger>
           <TabsTrigger
             value="chat"
-            className="rounded-lg px-1 py-1.5 text-[10px] font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
+            className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
           >
             Chat
           </TabsTrigger>
           <TabsTrigger
             value="specs"
-            className="rounded-lg px-1 py-1.5 text-[10px] font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
+            className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
           >
             Specs
           </TabsTrigger>
           <TabsTrigger
             value="iac"
-            className="rounded-lg px-1 py-1.5 text-[10px] font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
+            className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
           >
             IaC
           </TabsTrigger>
           <TabsTrigger
             value="audit"
-            className="rounded-lg px-1 py-1.5 text-[10px] font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
+            className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
           >
             Audit
           </TabsTrigger>
           <TabsTrigger
             value="cost"
-            className="rounded-lg px-1 py-1.5 text-[10px] font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
+            className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
           >
             Cost
+          </TabsTrigger>
+          <TabsTrigger
+            value="alternatives"
+            className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
+          >
+            Diff
+          </TabsTrigger>
+          <TabsTrigger
+            value="api"
+            className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
+          >
+            API
           </TabsTrigger>
         </TabsList>
 
@@ -1825,6 +2180,304 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
                 >
                   <DollarSign className="mr-1.5 h-3.5 w-3.5" />
                   Calculate Cost Estimate
+                </Button>
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        {/* Alternatives (Diff) Tab */}
+        <TabsContent value="alternatives" className="min-h-0 flex-1 overflow-hidden">
+          <div className="flex h-full flex-col gap-3 p-4">
+            {isAlternativesGenerating ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-3 py-12 text-center">
+                <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-ai/15">
+                  <GitFork className="h-7 w-7 text-accent-ai-text animate-pulse" />
+                  <Loader2 className="absolute inset-0 m-auto h-12 w-12 animate-spin text-accent-ai-text/40" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-text-primary">
+                    Synthesizing 3 Architectural Alternatives…
+                  </p>
+                  <p className="mt-1 text-xs text-text-muted">
+                    Comparing serverless, event-driven & modular paradigms
+                  </p>
+                </div>
+              </div>
+            ) : alternativesReport ? (
+              <div className="flex min-h-0 flex-1 flex-col gap-3">
+                <div className="flex items-center justify-between rounded-xl border border-border-subtle bg-bg-elevated p-3">
+                  <div>
+                    <p className="text-xs font-semibold text-text-primary">
+                      3 Alternative Architectures
+                    </p>
+                    <p className="text-[10px] text-text-muted">
+                      Select an architecture to apply to canvas
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleSuggestAlternatives}
+                    className="h-7 text-xs border-border-subtle"
+                  >
+                    Re-generate
+                  </Button>
+                </div>
+
+                <ScrollArea className="flex-1">
+                  <div className="flex flex-col gap-3 pr-1">
+                    {alternativesReport.alternatives.map((alt) => (
+                      <div
+                        key={alt.id}
+                        className="rounded-2xl border border-border-subtle bg-bg-elevated p-3.5 text-xs"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <span className="rounded-md bg-accent-ai/15 px-2 py-0.5 text-[9px] font-bold uppercase text-accent-ai-text">
+                              {alt.paradigm}
+                            </span>
+                            <h4 className="mt-1 font-semibold text-text-primary">
+                              {alt.title}
+                            </h4>
+                          </div>
+                        </div>
+
+                        <p className="mt-1.5 text-[11px] leading-relaxed text-text-secondary">
+                          {alt.description}
+                        </p>
+
+                        {/* Tradeoffs Grid */}
+                        <div className="mt-2.5 grid grid-cols-4 gap-1 rounded-xl bg-bg-subtle p-2 text-center text-[9px]">
+                          <div>
+                            <span className="text-text-faint">Cost</span>
+                            <p
+                              className={cn(
+                                "font-bold uppercase",
+                                alt.tradeoffs.cost === "low"
+                                  ? "text-emerald-400"
+                                  : alt.tradeoffs.cost === "high"
+                                  ? "text-rose-400"
+                                  : "text-amber-400"
+                              )}
+                            >
+                              {alt.tradeoffs.cost}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-text-faint">Complexity</span>
+                            <p
+                              className={cn(
+                                "font-bold uppercase",
+                                alt.tradeoffs.complexity === "low"
+                                  ? "text-emerald-400"
+                                  : alt.tradeoffs.complexity === "high"
+                                  ? "text-rose-400"
+                                  : "text-amber-400"
+                              )}
+                            >
+                              {alt.tradeoffs.complexity}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-text-faint">Latency</span>
+                            <p
+                              className={cn(
+                                "font-bold uppercase",
+                                alt.tradeoffs.latency === "low"
+                                  ? "text-emerald-400"
+                                  : alt.tradeoffs.latency === "high"
+                                  ? "text-rose-400"
+                                  : "text-amber-400"
+                              )}
+                            >
+                              {alt.tradeoffs.latency}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-text-faint">Scale</span>
+                            <p
+                              className={cn(
+                                "font-bold uppercase",
+                                alt.tradeoffs.scalability === "high"
+                                  ? "text-emerald-400"
+                                  : "text-amber-400"
+                              )}
+                            >
+                              {alt.tradeoffs.scalability}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Pros & Cons */}
+                        <div className="mt-2.5 space-y-1 text-[10px]">
+                          {alt.pros.slice(0, 2).map((p, idx) => (
+                            <div key={idx} className="flex items-start gap-1 text-text-secondary">
+                              <span className="text-emerald-400 font-bold">+</span>
+                              <span>{p}</span>
+                            </div>
+                          ))}
+                          {alt.cons.slice(0, 2).map((c, idx) => (
+                            <div key={idx} className="flex items-start gap-1 text-text-muted">
+                              <span className="text-rose-400 font-bold">-</span>
+                              <span>{c}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <Button
+                          size="sm"
+                          onClick={() => handleApplyAlternative(alt)}
+                          disabled={appliedAlternativeId === alt.id}
+                          className="mt-3 w-full h-7 gap-1.5 rounded-lg bg-accent-ai text-xs text-white hover:bg-accent-ai/80"
+                        >
+                          {appliedAlternativeId === alt.id ? (
+                            <>
+                              <Check className="h-3 w-3 text-state-success" />
+                              Applied to Canvas!
+                            </>
+                          ) : (
+                            <>
+                              <GitFork className="h-3 w-3" />
+                              Apply to Canvas ({alt.nodes.length} nodes)
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            ) : (
+              <div className="flex flex-1 flex-col items-center justify-center gap-4 py-8 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-ai/15">
+                  <GitFork className="h-6 w-6 text-accent-ai-text" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-text-primary">
+                    Architecture Alternatives & Diff
+                  </p>
+                  <p className="mt-1 max-w-[240px] text-xs text-text-muted">
+                    Generate 3 distinct architectural paradigms with tradeoff matrices and 1-click live canvas reconfiguration.
+                  </p>
+                </div>
+
+                <Button
+                  onClick={handleSuggestAlternatives}
+                  className="w-full rounded-xl bg-accent-ai text-white hover:bg-accent-ai/80"
+                >
+                  <GitFork className="mr-1.5 h-3.5 w-3.5" />
+                  Suggest 3 Alternatives
+                </Button>
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        {/* API Scaffold Tab */}
+        <TabsContent value="api" className="min-h-0 flex-1 overflow-hidden">
+          <div className="flex h-full flex-col gap-3 p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-text-primary">Target Framework</p>
+              <div className="flex gap-1 rounded-lg bg-bg-subtle p-0.5">
+                {(["nextjs", "fastapi", "express"] as const).map((fw) => (
+                  <button
+                    key={fw}
+                    type="button"
+                    onClick={() => setApiFramework(fw)}
+                    className={cn(
+                      "rounded-md px-2 py-0.5 text-[10px] font-semibold transition-all",
+                      apiFramework === fw
+                        ? "bg-accent-ai text-white shadow-xs"
+                        : "text-text-muted hover:text-text-secondary"
+                    )}
+                  >
+                    {fw === "nextjs" ? "Next.js" : fw === "fastapi" ? "FastAPI" : "Express"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {isScaffoldGenerating ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-3 py-12 text-center">
+                <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-ai/15">
+                  <FileCode className="h-7 w-7 text-accent-ai-text animate-pulse" />
+                  <Loader2 className="absolute inset-0 m-auto h-12 w-12 animate-spin text-accent-ai-text/40" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-text-primary">
+                    Generating API Scaffold & OpenAPI 3.0…
+                  </p>
+                  <p className="mt-1 text-xs text-text-muted">
+                    Building schemas, route handlers & Swagger docs
+                  </p>
+                </div>
+              </div>
+            ) : scaffoldResult ? (
+              <div className="flex min-h-0 flex-1 flex-col gap-3">
+                <div className="rounded-2xl border border-border-subtle bg-bg-elevated p-3.5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] uppercase font-semibold text-text-muted tracking-wider">
+                        API Scaffold
+                      </span>
+                      <p className="text-base font-bold text-text-primary mt-0.5">
+                        {scaffoldResult.endpointsCount} Endpoints Generated
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-accent-ai/15 px-2.5 py-0.5 text-[10px] font-semibold uppercase text-accent-ai-text border border-accent-ai/30">
+                      {scaffoldResult.framework}
+                    </span>
+                  </div>
+
+                  <p className="mt-2 text-xs leading-relaxed text-text-secondary">
+                    {scaffoldResult.summary}
+                  </p>
+
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setScaffoldModalOpen(true)}
+                      className="flex-1 h-7 text-xs border-border-subtle"
+                    >
+                      View Code & OpenAPI
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleDownloadRoutesCode}
+                      className="h-7 gap-1.5 bg-accent-ai px-3 text-xs text-white hover:bg-accent-ai/80"
+                    >
+                      <Download className="h-3 w-3" />
+                      Download {scaffoldResult.filename}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-border-subtle bg-bg-elevated/50 p-3 text-[11px] leading-relaxed text-text-muted">
+                  Includes full OpenAPI 3.0.3 specification (`openapi.yaml`) and ready-to-run {scaffoldResult.framework} route handlers with parameter validation and JSON responses.
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-1 flex-col items-center justify-center gap-4 py-8 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-ai/15">
+                  <FileCode className="h-6 w-6 text-accent-ai-text" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-text-primary">
+                    API Scaffold & OpenAPI Generator
+                  </p>
+                  <p className="mt-1 max-w-[240px] text-xs text-text-muted">
+                    Generate OpenAPI 3.0 specs and starter route handlers (Next.js, FastAPI, Express) from your architecture.
+                  </p>
+                </div>
+
+                <Button
+                  onClick={handleGenerateScaffold}
+                  className="w-full rounded-xl bg-accent-ai text-white hover:bg-accent-ai/80"
+                >
+                  <FileCode className="mr-1.5 h-3.5 w-3.5" />
+                  Generate API Scaffold
                 </Button>
               </div>
             )}
