@@ -6,6 +6,7 @@ import {
   ReactFlow,
   Background,
   BackgroundVariant,
+  MiniMap,
   ConnectionMode,
   ConnectionLineType,
   MarkerType,
@@ -22,7 +23,7 @@ import { CanvasNodeComponent } from "@/components/editor/canvas/canvas-node"
 import { GroupNodeComponent } from "@/components/editor/canvas/group-node"
 import { CanvasEdgeComponent } from "@/components/editor/canvas/canvas-edge"
 import { ShapePanel } from "@/components/editor/canvas/shape-panel"
-import { CanvasControls } from "@/components/editor/canvas/canvas-controls"
+import { CanvasControls, type GridVariantType } from "@/components/editor/canvas/canvas-controls"
 import { PresenceCursors } from "@/components/editor/canvas/presence-cursors"
 import { CollaboratorAvatars } from "@/components/editor/canvas/collaborator-avatars"
 import { NodeMetadataDrawer } from "@/components/editor/canvas/node-metadata-drawer"
@@ -272,6 +273,9 @@ export function CanvasEditor({ projectId, pendingTemplate, onTemplateImported, o
   const [isPlacingComment, setIsPlacingComment] = useState(false)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false)
+  const [showMinimap, setShowMinimap] = useState(false)
+  const [gridVariant, setGridVariant] = useState<GridVariantType>("dots")
+  const [snapToGrid, setSnapToGrid] = useState(false)
 
   useEffect(() => {
     const nodeConfigHandler = (e: Event) => {
@@ -399,17 +403,27 @@ export function CanvasEditor({ projectId, pendingTemplate, onTemplateImported, o
         onConnect={onConnect}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
+        snapToGrid={snapToGrid}
+        snapGrid={[24, 24]}
         connectionMode={ConnectionMode.Loose}
         connectionLineStyle={CONNECTION_LINE_STYLE}
         connectionLineType={ConnectionLineType.SmoothStep}
         className="bg-bg-base"
       >
-        <Background
-          variant={BackgroundVariant.Dots}
-          gap={24}
-          size={1.5}
-          color="var(--color-border-subtle)"
-        />
+        {gridVariant !== "none" && (
+          <Background
+            variant={
+              gridVariant === "dots"
+                ? BackgroundVariant.Dots
+                : gridVariant === "lines"
+                ? BackgroundVariant.Lines
+                : BackgroundVariant.Cross
+            }
+            gap={24}
+            size={gridVariant === "cross" ? 6 : 1.5}
+            color="var(--color-border-subtle)"
+          />
+        )}
       </ReactFlow>
       <CanvasControls
         onZoomIn={() => zoomIn({ duration: 200 })}
@@ -426,7 +440,26 @@ export function CanvasEditor({ projectId, pendingTemplate, onTemplateImported, o
         onAutoLayout={handleAutoLayout}
         isPlacingComment={isPlacingComment}
         onTogglePlaceComment={() => setIsPlacingComment((prev) => !prev)}
+        showMinimap={showMinimap}
+        onToggleMinimap={() => setShowMinimap((prev) => !prev)}
+        gridVariant={gridVariant}
+        onChangeGridVariant={setGridVariant}
+        snapToGrid={snapToGrid}
+        onToggleSnapToGrid={() => setSnapToGrid((prev) => !prev)}
       />
+      {showMinimap && (
+        <MiniMap
+          nodeColor={(n) => {
+            const d = n.data as Record<string, unknown>
+            if (d?.color && typeof d.color === "string") return d.color
+            return "#00c8d4"
+          }}
+          maskColor="rgba(8, 8, 9, 0.75)"
+          className="!bottom-4 !right-4 !rounded-2xl !border !border-border-default !bg-bg-surface/90 !backdrop-blur-xl shadow-2xl overflow-hidden"
+          zoomable
+          pannable
+        />
+      )}
       <ShapePanel />
       <PresenceCursors />
       <CollaboratorAvatars />

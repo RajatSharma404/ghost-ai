@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useMemo } from "react"
 import {
   Dialog,
   DialogContent,
@@ -8,8 +9,13 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Download } from "lucide-react"
-import { CANVAS_TEMPLATES, type CanvasTemplate } from "@/components/editor/starter-templates"
+import { Download, Search, Sparkles, Layers } from "lucide-react"
+import {
+  CANVAS_TEMPLATES,
+  type CanvasTemplate,
+  type TemplateCategory,
+} from "@/components/editor/starter-templates"
+import { cn } from "@/lib/utils"
 
 // Internal viewBox coordinate space — nodes are scaled/offset to fit here.
 const VB_W = 500
@@ -42,7 +48,6 @@ function TemplatePreview({ template }: TemplatePreviewProps) {
   const markerId = `arr-${template.id}`
 
   return (
-    // Wrapper keeps the 500:280 aspect ratio at any card width.
     <div className="w-full" style={{ aspectRatio: `${VB_W} / ${VB_H}` }}>
       <svg
         viewBox={`0 0 ${VB_W} ${VB_H}`}
@@ -65,7 +70,6 @@ function TemplatePreview({ template }: TemplatePreviewProps) {
           </marker>
         </defs>
 
-        {/* edges drawn before nodes so they sit underneath */}
         {template.edges.map((edge) => {
           const src = nodeMap.get(edge.source)
           const tgt = nodeMap.get(edge.target)
@@ -155,7 +159,6 @@ function TemplatePreview({ template }: TemplatePreviewProps) {
               />
             )
           }
-          // rectangle and cylinder both render as rounded rect
           return (
             <rect
               key={nd.id}
@@ -181,11 +184,34 @@ interface StarterTemplatesModalProps {
   onImport: (template: CanvasTemplate) => void
 }
 
+const CATEGORIES: Array<{ id: TemplateCategory; label: string }> = [
+  { id: "all", label: "All Templates" },
+  { id: "ai", label: "AI & Agents" },
+  { id: "streaming", label: "Real-Time & Streaming" },
+  { id: "saas", label: "Cloud & SaaS" },
+  { id: "microservices", label: "Microservices" },
+  { id: "devops", label: "DevOps & CI/CD" },
+]
+
 export function StarterTemplatesModal({
   open,
   onOpenChange,
   onImport,
 }: StarterTemplatesModalProps) {
+  const [activeCategory, setActiveCategory] = useState<TemplateCategory>("all")
+  const [searchQuery, setSearchQuery] = useState("")
+
+  const filteredTemplates = useMemo(() => {
+    return CANVAS_TEMPLATES.filter((t) => {
+      const matchesCategory = activeCategory === "all" || t.category === activeCategory
+      const matchesSearch =
+        !searchQuery.trim() ||
+        t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.description.toLowerCase().includes(searchQuery.toLowerCase())
+      return matchesCategory && matchesSearch
+    })
+  }, [activeCategory, searchQuery])
+
   function handleImport(template: CanvasTemplate) {
     onImport(template)
     onOpenChange(false)
@@ -193,48 +219,106 @@ export function StarterTemplatesModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[min(1520px,95vw)]! gap-0 p-0">
-        <DialogHeader className="border-b border-border-default px-10 py-7">
-          <DialogTitle className="text-xl">Import Template</DialogTitle>
-          <DialogDescription>
-            Choose a starter template to pre-populate your canvas. Any existing nodes will be
-            replaced — use <kbd className="rounded border border-border-default bg-bg-elevated px-1 py-0.5 font-mono text-[11px] text-text-muted">⌘Z</kbd> to undo.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="overflow-y-auto px-10 py-8">
-          <div className="grid grid-cols-3 gap-8">
-            {CANVAS_TEMPLATES.map((template) => (
-              <div
-                key={template.id}
-                className="flex flex-col overflow-hidden rounded-2xl border border-border-default bg-bg-elevated transition-colors hover:border-border-subtle"
-              >
-                {/* Preview */}
-                <div className="bg-bg-base px-5 pt-5 pb-4">
-                  <TemplatePreview template={template} />
-                </div>
-
-                {/* Card body */}
-                <div className="flex flex-1 flex-col gap-4 border-t border-border-default p-5">
-                  <div>
-                    <p className="text-base font-semibold text-text-primary">{template.name}</p>
-                    <p className="mt-1.5 text-sm leading-relaxed text-text-muted">
-                      {template.description}
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="mt-auto w-full gap-2"
-                    onClick={() => handleImport(template)}
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    Import
-                  </Button>
-                </div>
+      <DialogContent className="max-w-[min(1480px,95vw)]! gap-0 p-0 overflow-hidden">
+        <DialogHeader className="border-b border-border-default px-8 py-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent-ai/15 text-accent-ai-text">
+                <Sparkles className="h-4 w-4" />
               </div>
+              <div>
+                <DialogTitle className="text-lg font-semibold">Architecture Template Gallery</DialogTitle>
+                <DialogDescription className="text-xs text-text-muted">
+                  Choose a battle-tested architecture blueprint to pre-populate your canvas.
+                </DialogDescription>
+              </div>
+            </div>
+
+            {/* Search Input */}
+            <div className="flex items-center gap-2 rounded-xl border border-border-subtle bg-bg-surface px-3 py-1.5 w-72">
+              <Search className="h-4 w-4 text-text-faint" />
+              <input
+                type="text"
+                placeholder="Search templates..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-transparent text-xs text-text-primary outline-none placeholder:text-text-faint"
+              />
+            </div>
+          </div>
+
+          {/* Category Filter Pills */}
+          <div className="flex items-center gap-1.5 pt-3 overflow-x-auto">
+            {CATEGORIES.map((cat) => (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setActiveCategory(cat.id)}
+                className={cn(
+                  "rounded-xl px-3 py-1.5 text-xs font-medium transition-colors shrink-0",
+                  activeCategory === cat.id
+                    ? "bg-accent-ai text-white"
+                    : "text-text-muted hover:bg-bg-elevated hover:text-text-primary"
+                )}
+              >
+                {cat.label}
+              </button>
             ))}
           </div>
+        </DialogHeader>
+
+        <div className="max-h-[68vh] overflow-y-auto px-8 py-6">
+          {filteredTemplates.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center text-text-muted">
+              <Sparkles className="h-8 w-8 text-text-faint mb-2" />
+              <p className="text-sm font-medium text-text-secondary">No templates found</p>
+              <p className="text-xs text-text-muted mt-1">
+                Try searching for a different keyword or select another category.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-6">
+              {filteredTemplates.map((template) => (
+                <div
+                  key={template.id}
+                  className="flex flex-col overflow-hidden rounded-2xl border border-border-default bg-bg-elevated transition-colors hover:border-border-subtle group"
+                >
+                  {/* Preview */}
+                  <div className="bg-bg-base px-4 pt-4 pb-3">
+                    <TemplatePreview template={template} />
+                  </div>
+
+                  {/* Card body */}
+                  <div className="flex flex-1 flex-col gap-3 border-t border-border-default p-4">
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-text-primary truncate">
+                          {template.name}
+                        </p>
+                        <span className="flex items-center gap-1 rounded-full border border-border-subtle bg-bg-surface px-2 py-0.5 text-[10px] text-text-muted shrink-0">
+                          <Layers className="h-2.5 w-2.5" />
+                          {template.nodes.length} nodes
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs leading-relaxed text-text-muted line-clamp-2">
+                        {template.description}
+                      </p>
+                    </div>
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-auto w-full gap-2 border-border-subtle group-hover:border-accent-ai/50 group-hover:bg-accent-ai/10 group-hover:text-accent-ai-text transition-colors"
+                      onClick={() => handleImport(template)}
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      <span>Import Architecture</span>
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

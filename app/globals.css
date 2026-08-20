@@ -119,6 +119,56 @@
   --sidebar-ring: #00c8d4;
 }
 
+/* Light Mode Theme (Export & Documentation Friendly) */
+[data-theme="light"] {
+  --background: #f8f9fa;
+  --foreground: #18181b;
+  --color-bg-base: #f4f5f8;
+  --color-bg-surface: #ffffff;
+  --color-bg-elevated: #f1f2f6;
+  --color-bg-subtle: #e4e7ec;
+  --color-border-default: #d1d5db;
+  --color-border-subtle: #e5e7eb;
+  --color-text-primary: #111827;
+  --color-text-secondary: #374151;
+  --color-text-muted: #6b7280;
+  --color-text-faint: #9ca3af;
+  --card: #ffffff;
+  --card-foreground: #18181b;
+  --popover: #ffffff;
+  --popover-foreground: #18181b;
+  --border: #d1d5db;
+  --input: #d1d5db;
+  --sidebar: #f8f9fa;
+  --sidebar-foreground: #18181b;
+  --sidebar-border: #d1d5db;
+}
+
+/* Midnight OLED Mode Theme (Pure Pitch Black) */
+[data-theme="oled"] {
+  --background: #000000;
+  --foreground: #ffffff;
+  --color-bg-base: #000000;
+  --color-bg-surface: #0a0a0c;
+  --color-bg-elevated: #121215;
+  --color-bg-subtle: #18181c;
+  --color-border-default: #27272a;
+  --color-border-subtle: #3f3f46;
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #d4d4d8;
+  --color-text-muted: #a1a1aa;
+  --color-text-faint: #71717a;
+  --card: #0a0a0c;
+  --card-foreground: #ffffff;
+  --popover: #121215;
+  --popover-foreground: #ffffff;
+  --border: #27272a;
+  --input: #27272a;
+  --sidebar: #0a0a0c;
+  --sidebar-foreground: #ffffff;
+  --sidebar-border: #27272a;
+}
+
 @keyframes flow-dash {
   from {
     stroke-dashoffset: 24;

@@ -12,9 +12,14 @@ import {
   ArrowRight,
   ArrowDown,
   MessageSquare,
+  Map,
+  Grid,
+  Check,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { LayoutDirection } from "@/lib/auto-layout"
+
+export type GridVariantType = "dots" | "lines" | "cross" | "none"
 
 interface CanvasControlsProps {
   onZoomOut: () => void
@@ -31,6 +36,12 @@ interface CanvasControlsProps {
   onAutoLayout?: (direction: LayoutDirection) => void
   isPlacingComment?: boolean
   onTogglePlaceComment?: () => void
+  showMinimap?: boolean
+  onToggleMinimap?: () => void
+  gridVariant?: GridVariantType
+  onChangeGridVariant?: (variant: GridVariantType) => void
+  snapToGrid?: boolean
+  onToggleSnapToGrid?: () => void
 }
 
 export function CanvasControls({
@@ -48,8 +59,15 @@ export function CanvasControls({
   onAutoLayout,
   isPlacingComment = false,
   onTogglePlaceComment,
+  showMinimap = false,
+  onToggleMinimap,
+  gridVariant = "dots",
+  onChangeGridVariant,
+  snapToGrid = false,
+  onToggleSnapToGrid,
 }: CanvasControlsProps) {
   const [layoutMenuOpen, setLayoutMenuOpen] = useState(false)
+  const [gridMenuOpen, setGridMenuOpen] = useState(false)
 
   return (
     <div className="absolute bottom-4 left-4 z-10 flex items-center gap-0.5 rounded-full border border-border-default bg-bg-surface/95 px-2 py-1.5 shadow-xl backdrop-blur-xl">
@@ -71,6 +89,83 @@ export function CanvasControls({
       <ControlButton onClick={onRedo} title="Redo" disabled={!canRedo}>
         <Redo2 className="h-3.5 w-3.5" />
       </ControlButton>
+
+      {/* Grid Settings Popover */}
+      {onChangeGridVariant && (
+        <>
+          <div className="mx-1 h-4 w-px bg-border-default" />
+
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setGridMenuOpen((prev) => !prev)}
+              title="Canvas Grid & Snap Settings"
+              className={cn(
+                "flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium transition-all",
+                gridMenuOpen
+                  ? "bg-bg-elevated text-text-primary"
+                  : "text-text-muted hover:bg-bg-elevated hover:text-text-primary"
+              )}
+            >
+              <Grid className="h-3.5 w-3.5" />
+              <span>Grid</span>
+            </button>
+
+            {gridMenuOpen && (
+              <div
+                className="absolute bottom-9 left-0 flex flex-col gap-1 rounded-2xl border border-border-default bg-bg-surface p-1.5 shadow-2xl backdrop-blur-xl"
+                style={{ minWidth: 160 }}
+              >
+                <div className="px-2 py-1 text-[10px] font-semibold text-text-muted">
+                  Grid Background
+                </div>
+                {(
+                  [
+                    { id: "dots", label: "Dots Grid" },
+                    { id: "lines", label: "Lines Grid" },
+                    { id: "cross", label: "Cross Grid" },
+                    { id: "none", label: "Blank Canvas" },
+                  ] as const
+                ).map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      onChangeGridVariant(item.id)
+                      setGridMenuOpen(false)
+                    }}
+                    className="flex items-center justify-between rounded-xl px-2.5 py-1.5 text-xs text-text-secondary hover:bg-bg-elevated hover:text-text-primary transition-colors text-left"
+                  >
+                    <span>{item.label}</span>
+                    {gridVariant === item.id && (
+                      <Check className="h-3.5 w-3.5 text-accent-primary" />
+                    )}
+                  </button>
+                ))}
+
+                {onToggleSnapToGrid && (
+                  <>
+                    <div className="my-1 h-px bg-border-subtle" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onToggleSnapToGrid()
+                        setGridMenuOpen(false)
+                      }}
+                      className="flex items-center justify-between rounded-xl px-2.5 py-1.5 text-xs text-text-secondary hover:bg-bg-elevated hover:text-text-primary transition-colors text-left"
+                    >
+                      <span>Snap to Grid</span>
+                      {snapToGrid && (
+                        <Check className="h-3.5 w-3.5 text-accent-primary" />
+                      )}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       {/* Auto-Layout / Tidy Button */}
       {onAutoLayout && (
@@ -126,6 +221,28 @@ export function CanvasControls({
               </div>
             )}
           </div>
+        </>
+      )}
+
+      {/* MiniMap Toggle Button */}
+      {onToggleMinimap && (
+        <>
+          <div className="mx-1 h-4 w-px bg-border-default" />
+
+          <button
+            type="button"
+            onClick={onToggleMinimap}
+            title={showMinimap ? "Hide Minimap (M)" : "Show Minimap (M)"}
+            className={cn(
+              "flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium transition-all",
+              showMinimap
+                ? "bg-accent-primary/20 text-accent-primary border border-accent-primary/40 shadow-xs"
+                : "text-text-muted hover:bg-bg-elevated hover:text-text-primary"
+            )}
+          >
+            <Map className="h-3.5 w-3.5" />
+            <span>Map</span>
+          </button>
         </>
       )}
 
