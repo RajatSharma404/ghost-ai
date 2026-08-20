@@ -171,11 +171,16 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
   const [specPublicToken, setSpecPublicToken] = useState<string | null>(null)
 
   // IaC state
-  const [iacFormat, setIacFormat] = useState<IaCFormat>("docker-compose")
+  const [selectedIacFormats, setSelectedIacFormats] = useState<IaCFormat[]>([
+    "docker-compose",
+    "terraform",
+    "kubernetes",
+  ])
   const [isIacGenerating, setIsIacGenerating] = useState(false)
   const [iacRunId, setIacRunId] = useState<string | null>(null)
   const [iacPublicToken, setIacPublicToken] = useState<string | null>(null)
-  const [iacResult, setIacResult] = useState<IaCResult | null>(null)
+  const [iacResults, setIacResults] = useState<Partial<Record<IaCFormat, IaCResult>>>({})
+  const [activeIacTab, setActiveIacTab] = useState<IaCFormat>("docker-compose")
   const [iacModalOpen, setIacModalOpen] = useState(false)
   const [iacCopied, setIacCopied] = useState(false)
 
@@ -367,6 +372,25 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
     }
   }, [isSpecGenerating, roomId, nodesArray, edgesArray, validatedChatMessages])
 
+  const toggleIacFormat = useCallback((format: IaCFormat) => {
+    setSelectedIacFormats((prev) => {
+      if (prev.includes(format)) {
+        if (prev.length === 1) return prev
+        return prev.filter((f) => f !== format)
+      } else {
+        return [...prev, format]
+      }
+    })
+  }, [])
+
+  const selectAllIacFormats = useCallback(() => {
+    setSelectedIacFormats((prev) =>
+      prev.length === 3
+        ? ["docker-compose"]
+        : ["docker-compose", "terraform", "kubernetes"]
+    )
+  }, [])
+
   const handleIacRunTerminal = useCallback(
     (status: string, output: unknown) => {
       setIsIacGenerating(false)
@@ -374,7 +398,8 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
       setIacPublicToken(null)
       if (status === "COMPLETED" && output) {
         const typed = output as IaCResult
-        setIacResult(typed)
+        setIacResults((prev) => ({ ...prev, [typed.format]: typed }))
+        setActiveIacTab(typed.format)
         setIacModalOpen(true)
       }
     },
@@ -382,7 +407,7 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
   )
 
   const handleGenerateIac = useCallback(async () => {
-    if (isIacGenerating) return
+    if (isIacGenerating || selectedIacFormats.length === 0) return
     setIsIacGenerating(true)
 
     const nodes = nodesArray ?? []
@@ -396,13 +421,34 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
       const res = await fetch("/api/ai/iac", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roomId, format: iacFormat, chatHistory, nodes, edges, direct: true }),
+        body: JSON.stringify({
+          roomId,
+          formats: selectedIacFormats,
+          chatHistory,
+          nodes,
+          edges,
+          direct: true,
+        }),
       })
       if (!res.ok) throw new Error("IaC generation failed")
-      const data = (await res.json()) as { result?: IaCResult; runId?: string }
+      const data = (await res.json()) as {
+        result?: IaCResult
+        results?: IaCResult[]
+        runId?: string
+      }
 
-      if (data.result) {
-        setIacResult(data.result)
+      const receivedList: IaCResult[] =
+        data.results ?? (data.result ? [data.result] : [])
+
+      if (receivedList.length > 0) {
+        setIacResults((prev) => {
+          const next = { ...prev }
+          for (const item of receivedList) {
+            next[item.format] = item
+          }
+          return next
+        })
+        setActiveIacTab(receivedList[0].format)
         setIsIacGenerating(false)
         setIacModalOpen(true)
         return
@@ -425,27 +471,46 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
     } catch {
       setIsIacGenerating(false)
     }
-  }, [isIacGenerating, roomId, iacFormat, nodesArray, edgesArray, validatedChatMessages])
+  }, [isIacGenerating, roomId, selectedIacFormats, nodesArray, edgesArray, validatedChatMessages])
 
-  const handleCopyIac = useCallback(() => {
-    if (!iacResult?.code) return
-    navigator.clipboard.writeText(iacResult.code).catch(() => {})
-    setIacCopied(true)
-    setTimeout(() => setIacCopied(false), 2000)
-  }, [iacResult])
+  const activeIacResult = iacResults[activeIacTab] ?? Object.values(iacResults)[0] ?? null
 
-  const handleDownloadIac = useCallback(() => {
-    if (!iacResult?.code) return
-    const blob = new Blob([iacResult.code], { type: "text/plain;charset=utf-8" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = iacResult.filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  }, [iacResult])
+  const handleCopyIac = useCallback(
+    (code?: string) => {
+      const codeToCopy = code ?? activeIacResult?.code
+      if (!codeToCopy) return
+      navigator.clipboard.writeText(codeToCopy).catch(() => {})
+      setIacCopied(true)
+      setTimeout(() => setIacCopied(false), 2000)
+    },
+    [activeIacResult]
+  )
+
+  const handleDownloadIac = useCallback(
+    (result?: IaCResult | null) => {
+      const target = result ?? activeIacResult
+      if (!target?.code) return
+      const blob = new Blob([target.code], { type: "text/plain;charset=utf-8" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = target.filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    },
+    [activeIacResult]
+  )
+
+  const handleDownloadAllIac = useCallback(() => {
+    const list = Object.values(iacResults).filter(Boolean) as IaCResult[]
+    list.forEach((item, index) => {
+      setTimeout(() => {
+        handleDownloadIac(item)
+      }, index * 250)
+    })
+  }, [iacResults, handleDownloadIac])
 
   const handleAuditRunTerminal = useCallback(
     (status: string, output: unknown) => {
@@ -1155,43 +1220,96 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
           className="sm:max-w-4xl max-w-4xl border-border-default bg-bg-surface p-6"
         >
           <DialogHeader>
-            <div className="flex items-center gap-2 pr-6">
-              <Code2 className="h-4 w-4 text-accent-ai-text" />
-              <DialogTitle className="text-sm font-medium text-text-primary">
-                {iacResult?.filename ?? "Infrastructure as Code"}
-              </DialogTitle>
-              {iacResult?.format && (
+            <div className="flex items-center justify-between pr-6">
+              <div className="flex items-center gap-2">
+                <Code2 className="h-4 w-4 text-accent-ai-text" />
+                <DialogTitle className="text-sm font-medium text-text-primary">
+                  Infrastructure as Code
+                </DialogTitle>
                 <span className="rounded-full bg-accent-ai/15 px-2 py-0.5 text-[10px] font-medium text-accent-ai-text uppercase">
-                  {iacResult.format}
+                  {Object.keys(iacResults).length} generated
                 </span>
-              )}
+              </div>
             </div>
           </DialogHeader>
 
-          <ScrollArea className="max-h-[65vh] rounded-xl border border-border-subtle bg-bg-elevated font-mono text-xs">
-            <pre className="p-4 text-text-primary overflow-x-auto leading-relaxed whitespace-pre">
-              <code>{iacResult?.code}</code>
+          {/* Format Tabs Switcher */}
+          <div className="flex gap-2 border-b border-border-subtle pb-2 text-xs">
+            {(["docker-compose", "terraform", "kubernetes"] as const).map((fmt) => {
+              const res = iacResults[fmt]
+              if (!res) return null
+              const label =
+                fmt === "docker-compose"
+                  ? "docker-compose.yml"
+                  : fmt === "terraform"
+                  ? "main.tf"
+                  : "k8s.yaml"
+              const icon =
+                fmt === "docker-compose" ? "🐳" : fmt === "terraform" ? "🌐" : "☸️"
+
+              return (
+                <button
+                  key={fmt}
+                  type="button"
+                  onClick={() => setActiveIacTab(fmt)}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition-colors",
+                    activeIacTab === fmt
+                      ? "bg-accent-ai text-white shadow-xs"
+                      : "bg-bg-subtle text-text-muted hover:text-text-primary"
+                  )}
+                >
+                  <span>{icon}</span>
+                  <span>{label}</span>
+                  <span className="rounded px-1 text-[9px] uppercase opacity-80">
+                    {fmt === "docker-compose" ? "Compose" : fmt === "terraform" ? "AWS" : "K8s"}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+
+          <ScrollArea className="max-h-[60vh] rounded-xl border border-border-subtle bg-bg-elevated font-mono text-xs">
+            <pre className="p-4 text-text-primary overflow-x-auto leading-relaxed whitespace-pre font-mono">
+              <code>{activeIacResult?.code || "No code available."}</code>
             </pre>
           </ScrollArea>
 
-          <div className="flex justify-end gap-2 border-t border-border-default pt-3">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleCopyIac}
-              className="h-7 gap-1.5 rounded-lg border-border-subtle px-3 text-xs text-text-secondary hover:border-border-default hover:text-text-primary"
-            >
-              {iacCopied ? <Check className="h-3 w-3 text-state-success" /> : <Copy className="h-3 w-3" />}
-              {iacCopied ? "Copied!" : "Copy Code"}
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleDownloadIac}
-              className="h-7 gap-1.5 rounded-lg bg-accent-ai px-3 text-xs text-white hover:bg-accent-ai/80"
-            >
-              <Download className="h-3 w-3" />
-              Download {iacResult?.filename}
-            </Button>
+          <div className="flex items-center justify-between border-t border-border-default pt-3">
+            <span className="text-xs text-text-muted">
+              Viewing <code className="font-mono text-accent-ai-text">{activeIacResult?.filename}</code>
+            </span>
+
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleCopyIac()}
+                className="h-7 gap-1.5 rounded-lg border-border-subtle px-3 text-xs text-text-secondary hover:border-border-default hover:text-text-primary"
+              >
+                {iacCopied ? <Check className="h-3 w-3 text-state-success" /> : <Copy className="h-3 w-3" />}
+                {iacCopied ? "Copied!" : `Copy ${activeIacResult?.filename ?? "Code"}`}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleDownloadIac()}
+                className="h-7 gap-1.5 rounded-lg border-border-subtle px-3 text-xs text-text-secondary hover:border-border-default hover:text-text-primary"
+              >
+                <Download className="h-3 w-3" />
+                Download {activeIacResult?.filename ?? "File"}
+              </Button>
+              {Object.keys(iacResults).length > 1 && (
+                <Button
+                  size="sm"
+                  onClick={handleDownloadAllIac}
+                  className="h-7 gap-1.5 rounded-lg bg-accent-ai px-3 text-xs text-white hover:bg-accent-ai/80"
+                >
+                  <Download className="h-3 w-3" />
+                  Download All ({Object.keys(iacResults).length} files)
+                </Button>
+              )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -1627,141 +1745,184 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
 
         {/* IaC Tab */}
         <TabsContent value="iac" className="min-h-0 flex-1 overflow-hidden">
-          <div className="flex h-full flex-col gap-3 p-4">
-            <div>
-              <p className="text-xs font-medium text-text-primary">Target Format</p>
-              <p className="mt-0.5 text-[11px] text-text-muted">
-                Choose the infrastructure format to export
+          <div className="flex h-full flex-col gap-3 p-4 overflow-y-auto">
+            {/* Header & Multi-Select Controls */}
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-text-primary">
+                Select Formats to Generate
               </p>
+              <button
+                type="button"
+                onClick={selectAllIacFormats}
+                className="text-[10px] text-accent-ai-text hover:underline font-medium"
+              >
+                {selectedIacFormats.length === 3 ? "Select 1" : "Select All (3)"}
+              </button>
             </div>
 
+            {/* Format selection cards */}
             <div className="grid grid-cols-3 gap-1.5 rounded-xl bg-bg-subtle p-1">
-              <button
-                type="button"
-                onClick={() => setIacFormat("docker-compose")}
-                className={cn(
-                  "flex flex-col items-center gap-1 rounded-lg py-2 text-center transition-all",
-                  iacFormat === "docker-compose"
-                    ? "bg-bg-elevated text-text-primary shadow-sm ring-1 ring-border-subtle"
-                    : "text-text-muted hover:text-text-secondary"
-                )}
-              >
-                <Box className="h-4 w-4" />
-                <span className="text-[10px] font-medium">Compose</span>
-              </button>
+              {[
+                { id: "docker-compose" as const, label: "Compose", icon: Box, ext: "docker-compose.yml" },
+                { id: "terraform" as const, label: "Terraform", icon: Layers, ext: "main.tf" },
+                { id: "kubernetes" as const, label: "Kubernetes", icon: Terminal, ext: "k8s.yaml" },
+              ].map(({ id, label, icon: Icon, ext }) => {
+                const isSelected = selectedIacFormats.includes(id)
+                const isGenerated = !!iacResults[id]
 
-              <button
-                type="button"
-                onClick={() => setIacFormat("terraform")}
-                className={cn(
-                  "flex flex-col items-center gap-1 rounded-lg py-2 text-center transition-all",
-                  iacFormat === "terraform"
-                    ? "bg-bg-elevated text-text-primary shadow-sm ring-1 ring-border-subtle"
-                    : "text-text-muted hover:text-text-secondary"
-                )}
-              >
-                <Layers className="h-4 w-4" />
-                <span className="text-[10px] font-medium">Terraform</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIacFormat("kubernetes")}
-                className={cn(
-                  "flex flex-col items-center gap-1 rounded-lg py-2 text-center transition-all",
-                  iacFormat === "kubernetes"
-                    ? "bg-bg-elevated text-text-primary shadow-sm ring-1 ring-border-subtle"
-                    : "text-text-muted hover:text-text-secondary"
-                )}
-              >
-                <Terminal className="h-4 w-4" />
-                <span className="text-[10px] font-medium">Kubernetes</span>
-              </button>
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => toggleIacFormat(id)}
+                    className={cn(
+                      "relative flex flex-col items-center gap-1 rounded-lg py-2.5 px-1 text-center transition-all border",
+                      isSelected
+                        ? "bg-bg-elevated text-text-primary border-accent-ai/40 shadow-xs ring-1 ring-accent-ai/20"
+                        : "bg-transparent text-text-muted border-transparent hover:text-text-secondary hover:bg-bg-elevated/40"
+                    )}
+                  >
+                    <div className="flex items-center gap-1">
+                      <Icon className={cn("h-4 w-4", isSelected ? "text-accent-ai-text" : "text-text-muted")} />
+                      {isSelected && (
+                        <Check className="h-3 w-3 text-accent-ai-text font-bold" />
+                      )}
+                    </div>
+                    <span className="text-[10px] font-semibold">{label}</span>
+                    <span className="text-[8px] font-mono text-text-faint truncate max-w-full">
+                      {ext}
+                    </span>
+                    {isGenerated && (
+                      <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
             </div>
 
-            <div className="rounded-xl border border-border-subtle bg-bg-elevated/50 p-3 text-[11px] leading-relaxed text-text-muted">
-              {iacFormat === "docker-compose" && (
+            {/* Description note */}
+            <div className="rounded-xl border border-border-subtle bg-bg-elevated/50 p-2.5 text-[11px] leading-relaxed text-text-muted">
+              {selectedIacFormats.length === 3 && (
                 <span>
-                  Generates <code className="font-mono text-accent-ai-text">docker-compose.yml</code> with container images, ports, volumes, and service dependencies.
+                  Generates full infrastructure suite: <code className="font-mono text-accent-ai-text">docker-compose.yml</code>, <code className="font-mono text-accent-ai-text">main.tf</code> (AWS), and <code className="font-mono text-accent-ai-text">k8s.yaml</code>.
                 </span>
               )}
-              {iacFormat === "terraform" && (
+              {selectedIacFormats.length === 2 && (
                 <span>
-                  Generates <code className="font-mono text-accent-ai-text">main.tf</code> with cloud VPC, databases, compute clusters, and load balancers.
+                  Generates {selectedIacFormats.map((f) => f === "docker-compose" ? "Docker Compose" : f === "terraform" ? "Terraform" : "Kubernetes").join(" and ")}.
                 </span>
               )}
-              {iacFormat === "kubernetes" && (
+              {selectedIacFormats.length === 1 && (
                 <span>
-                  Generates <code className="font-mono text-accent-ai-text">k8s.yaml</code> manifests with Deployments, Services, ConfigMaps, and Ingress routing.
+                  Generates {selectedIacFormats[0] === "docker-compose" ? "Docker Compose (docker-compose.yml)" : selectedIacFormats[0] === "terraform" ? "AWS Terraform (main.tf)" : "Kubernetes Manifests (k8s.yaml)"}.
                 </span>
               )}
             </div>
 
             <Button
               onClick={handleGenerateIac}
-              disabled={isIacGenerating}
+              disabled={isIacGenerating || selectedIacFormats.length === 0}
               className="w-full rounded-xl bg-accent-ai text-white hover:bg-accent-ai/80 disabled:opacity-60"
             >
               {isIacGenerating ? (
                 <>
                   <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                  Generating {iacFormat}…
+                  Generating {selectedIacFormats.length} Format{selectedIacFormats.length > 1 ? "s" : ""}…
                 </>
               ) : (
                 <>
                   <Code2 className="mr-1.5 h-3.5 w-3.5" />
-                  Generate {iacFormat === "docker-compose" ? "Docker Compose" : iacFormat === "terraform" ? "Terraform" : "Kubernetes"}
+                  {selectedIacFormats.length === 3
+                    ? "Generate All 3 Formats"
+                    : selectedIacFormats.length === 2
+                    ? "Generate 2 Formats"
+                    : selectedIacFormats.length === 1
+                    ? `Generate ${selectedIacFormats[0] === "docker-compose" ? "Docker Compose" : selectedIacFormats[0] === "terraform" ? "Terraform" : "Kubernetes"}`
+                    : "Select at least 1 format"}
                 </>
               )}
             </Button>
 
-            {iacResult ? (
-              <div className="mt-1 flex flex-col gap-2 rounded-xl border border-border-subtle bg-bg-elevated p-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <Code2 className="h-3.5 w-3.5 shrink-0 text-accent-ai-text" />
-                    <span className="truncate text-xs font-medium text-text-primary">
-                      {iacResult.filename}
-                    </span>
-                  </div>
-                  <span className="rounded bg-accent-ai/15 px-1.5 py-0.5 text-[9px] font-medium text-accent-ai-text uppercase">
-                    {iacResult.format}
+            {/* Generated Artifacts List */}
+            {Object.keys(iacResults).length > 0 ? (
+              <div className="mt-1 flex flex-col gap-2">
+                <div className="flex items-center justify-between px-0.5">
+                  <span className="text-[11px] font-semibold text-text-primary">
+                    Generated Infrastructure ({Object.keys(iacResults).length})
                   </span>
+                  {Object.keys(iacResults).length > 1 && (
+                    <button
+                      type="button"
+                      onClick={handleDownloadAllIac}
+                      className="text-[10px] text-accent-ai-text hover:underline flex items-center gap-1"
+                    >
+                      <Download className="h-2.5 w-2.5" />
+                      Download All
+                    </button>
+                  )}
                 </div>
 
-                <div className="flex gap-1.5 pt-1">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setIacModalOpen(true)}
-                    className="flex-1 h-7 text-xs"
-                  >
-                    View Code
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleCopyIac}
-                    className="h-7 px-2.5 text-xs"
-                    title="Copy code"
-                  >
-                    {iacCopied ? <Check className="h-3 w-3 text-state-success" /> : <Copy className="h-3 w-3" />}
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={handleDownloadIac}
-                    className="h-7 px-2.5 bg-accent-ai text-white hover:bg-accent-ai/80 text-xs"
-                    title="Download file"
-                  >
-                    <Download className="h-3 w-3" />
-                  </Button>
-                </div>
+                {Object.values(iacResults).map((res) => {
+                  if (!res) return null
+                  return (
+                    <div
+                      key={res.format}
+                      className="flex flex-col gap-2 rounded-xl border border-border-subtle bg-bg-elevated p-3"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Code2 className="h-3.5 w-3.5 shrink-0 text-accent-ai-text" />
+                          <span className="truncate text-xs font-medium text-text-primary">
+                            {res.filename}
+                          </span>
+                        </div>
+                        <span className="rounded bg-accent-ai/15 px-1.5 py-0.5 text-[9px] font-medium text-accent-ai-text uppercase">
+                          {res.format}
+                        </span>
+                      </div>
+
+                      <div className="flex gap-1.5 pt-0.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setActiveIacTab(res.format)
+                            setIacModalOpen(true)
+                          }}
+                          className="flex-1 h-7 text-xs"
+                        >
+                          View Code
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleCopyIac(res.code)}
+                          className="h-7 px-2.5 text-xs"
+                          title="Copy code"
+                        >
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handleDownloadIac(res)}
+                          className="h-7 px-2.5 bg-accent-ai text-white hover:bg-accent-ai/80 text-xs"
+                          title="Download file"
+                        >
+                          <Download className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             ) : (
               <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center py-6">
                 <Code2 className="h-8 w-8 text-text-faint" />
                 <p className="text-xs text-text-muted">
-                  No code generated yet. Select a format and click generate.
+                  No code generated yet. Select 1, 2, or all 3 formats and click generate.
                 </p>
               </div>
             )}
