@@ -154,35 +154,35 @@ function NodeMetadataDrawerContent({
       />
       <aside
         className={cn(
-          "fixed inset-y-3 right-3 top-15 z-50 flex w-96 md:w-[420px] flex-col rounded-3xl border border-border-default bg-bg-surface/98 shadow-2xl backdrop-blur-2xl transition-all duration-200 animate-in fade-in slide-in-from-right-5"
+          "fixed right-3 top-16 bottom-3 z-50 flex w-96 md:w-[440px] max-h-[calc(100vh-4.75rem)] flex-col rounded-3xl border border-border-default bg-bg-surface/98 shadow-2xl backdrop-blur-2xl overflow-hidden transition-all duration-200 animate-in fade-in slide-in-from-right-5"
         )}
       >
-      {/* Header */}
-      <div className="flex shrink-0 items-center justify-between border-b border-border-default px-5 py-4">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent-ai/15 text-accent-ai-text">
-            <Server className="h-4 w-4" />
+        {/* Header */}
+        <div className="flex shrink-0 items-center justify-between border-b border-border-default px-5 py-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent-ai/15 text-accent-ai-text">
+              <Server className="h-4 w-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-text-primary">
+                {nodeLabel || "Component Config"}
+              </h3>
+              <p className="text-[10px] text-text-muted">Node Metadata & Specs</p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-sm font-semibold text-text-primary">
-              {nodeLabel || "Component Config"}
-            </h3>
-            <p className="text-[10px] text-text-muted">Node Metadata & Specs</p>
-          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-text-muted hover:bg-bg-subtle hover:text-text-primary transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex h-7 w-7 items-center justify-center rounded-lg text-text-muted hover:bg-bg-subtle hover:text-text-primary transition-colors"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-
-      {/* Drawer Body */}
-      <ScrollArea className="flex-1 p-5">
-        <div className="space-y-6 text-xs pr-2">
+        {/* Drawer Body */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-5">
+          <div className="space-y-6 text-xs pr-1">
           {/* Section 1: Overview & Role */}
           <div className="space-y-3">
             <div className="flex items-center gap-1.5 font-semibold text-text-primary">
@@ -427,7 +427,7 @@ function NodeMetadataDrawerContent({
             </div>
           </div>
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Footer */}
       <div className="flex items-center justify-between border-t border-border-default bg-bg-subtle/50 px-5 py-3">
