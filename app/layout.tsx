@@ -16,7 +16,14 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Ghost AI",
-  description: "AI-powered design collaboration",
+  description: "Autonomous AI System Architect & Collaborative Diagramming Platform",
+  icons: {
+    icon: [
+      { url: "/logo.png", href: "/logo.png" },
+      { url: "/icon.png", href: "/icon.png" },
+    ],
+    apple: "/logo.png",
+  },
 }
 
 export default function RootLayout({
