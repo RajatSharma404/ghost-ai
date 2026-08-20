@@ -114,6 +114,7 @@ export interface CanvasNodeData extends Record<string, unknown> {
   color?: string
   textColor?: string
   shape?: NodeShape
+  icon?: string
 }
 
 export interface GroupNodeData extends Record<string, unknown> {

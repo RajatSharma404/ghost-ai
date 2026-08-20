@@ -5,8 +5,12 @@ import { Handle, Position, NodeResizer, NodeToolbar } from "@xyflow/react"
 import type { NodeProps } from "@xyflow/react"
 import { useMutation } from "@liveblocks/react"
 import { LiveObject } from "@liveblocks/client"
+import { Sparkles } from "lucide-react"
 import type { CanvasRegularNode, NodeShape } from "@/types/canvas"
 import { NODE_COLORS } from "@/types/canvas"
+import { TechIcon } from "@/components/editor/canvas/tech-icons"
+import { IconPickerDialog } from "@/components/editor/canvas/icon-picker-dialog"
+import { cn } from "@/lib/utils"
 
 const DEFAULT_FILL = NODE_COLORS[0].fill
 const DEFAULT_TEXT = NODE_COLORS[0].text
@@ -105,7 +109,13 @@ function ColorSwatch({ pair, isActive, onSelect }: ColorSwatchProps) {
 }
 
 type LiveNodeData = LiveObject<{
-  data: LiveObject<{ label: string; color?: string; textColor?: string; shape?: NodeShape }>
+  data: LiveObject<{
+    label: string
+    color?: string
+    textColor?: string
+    shape?: NodeShape
+    icon?: string
+  }>
 }>
 
 export function CanvasNodeComponent({ id, data, selected }: NodeProps<CanvasRegularNode>) {
@@ -116,6 +126,7 @@ export function CanvasNodeComponent({ id, data, selected }: NodeProps<CanvasRegu
   const isSvg = shape === "diamond" || shape === "hexagon" || shape === "cylinder"
 
   const [isEditing, setIsEditing] = useState(false)
+  const [iconPickerOpen, setIconPickerOpen] = useState(false)
   const editRef = useRef<HTMLDivElement>(null)
 
   const updateNodeLabel = useMutation(({ storage }, newLabel: string) => {
@@ -130,6 +141,13 @@ export function CanvasNodeComponent({ id, data, selected }: NodeProps<CanvasRegu
     const liveData = (node as unknown as LiveNodeData).get("data")
     liveData.set("color", colorFill)
     liveData.set("textColor", colorText)
+  }, [id])
+
+  const updateNodeIcon = useMutation(({ storage }, iconKey: string | null) => {
+    const node = storage.get("flow").get("nodes").get(id)
+    if (!node) return
+    const liveData = (node as unknown as LiveNodeData).get("data")
+    liveData.set("icon", iconKey ?? "")
   }, [id])
 
   const startEditing = useCallback((e: React.MouseEvent) => {
@@ -166,12 +184,25 @@ export function CanvasNodeComponent({ id, data, selected }: NodeProps<CanvasRegu
   }, [isEditing])
 
   const labelContent = (
-    <span
-      className={isSvg ? "relative z-10 truncate px-3" : "truncate px-3"}
-      style={{ color: textColor, visibility: isEditing ? "hidden" : "visible" }}
+    <div
+      className={cn(
+        "flex items-center justify-center gap-1.5 max-w-full px-3",
+        isSvg ? "relative z-10" : ""
+      )}
+      style={{ visibility: isEditing ? "hidden" : "visible" }}
     >
-      {data.label || <span style={{ opacity: 0.35 }}>Label</span>}
-    </span>
+      {data.icon && (
+        <div className="shrink-0 flex items-center justify-center">
+          <TechIcon iconId={data.icon} size={18} />
+        </div>
+      )}
+      <span
+        className="truncate"
+        style={{ color: textColor }}
+      >
+        {data.label || <span style={{ opacity: 0.35 }}>Label</span>}
+      </span>
+    </div>
   )
 
   return (
@@ -199,8 +230,34 @@ export function CanvasNodeComponent({ id, data, selected }: NodeProps<CanvasRegu
               onSelect={updateNodeColor}
             />
           ))}
+
+          <div className="mx-0.5 h-3.5 w-px bg-border-subtle" />
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setIconPickerOpen(true)
+            }}
+            className="nodrag nopan flex items-center gap-1 rounded-full bg-bg-elevated px-2 py-1 text-[10px] font-medium text-text-secondary hover:text-text-primary hover:bg-bg-subtle transition-colors"
+            title="Choose Tech Icon"
+          >
+            {data.icon ? (
+              <TechIcon iconId={data.icon} size={13} />
+            ) : (
+              <Sparkles className="h-3 w-3 text-accent-ai-text" />
+            )}
+            <span>{data.icon ? "Icon" : "Add Icon"}</span>
+          </button>
         </div>
       </NodeToolbar>
+
+      <IconPickerDialog
+        open={iconPickerOpen}
+        onOpenChange={setIconPickerOpen}
+        currentIcon={data.icon}
+        onSelectIcon={updateNodeIcon}
+      />
 
       {isSvg ? (
         <>
