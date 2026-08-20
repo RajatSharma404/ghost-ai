@@ -251,15 +251,45 @@ ${findingsMd || "No critical issues detected. Architecture aligns with standard 
 *Report compiled automatically by Ghost AI System Architect.*`
 }
 
+export async function runAuditDirect(payload: {
+  nodes: Node[]
+  edges: Edge[]
+  chatHistory: ChatMessage[]
+  projectId?: string
+  roomId?: string
+}): Promise<AuditReport> {
+  const apiKey =
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY ??
+    process.env.GOOGLE_AI_API_KEY ??
+    process.env.GEMINI_API_KEY
+
+  const google = createGoogleGenerativeAI({
+    apiKey,
+  })
+
+  const context = buildTopologyContext(payload.nodes, payload.edges, payload.chatHistory)
+  const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash"
+
+  const result = await generateText({
+    model: google(modelName),
+    system: SYSTEM_PROMPT,
+    prompt: context,
+  })
+
+  const parsedReport = parseAuditJson(result.text)
+  const markdownReport = generateMarkdownReport(parsedReport)
+
+  return {
+    ...parsedReport,
+    markdownReport,
+  }
+}
+
 export const auditArchitecture = schemaTask({
   id: "audit-architecture",
   schema: payloadSchema,
   retry: { maxAttempts: 2, minTimeoutInMs: 1000, maxTimeoutInMs: 10000, factor: 2 },
   run: async (payload) => {
-    const google = createGoogleGenerativeAI({
-      apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GOOGLE_AI_API_KEY,
-    })
-
     metadata.set("status", "starting")
     logger.info("Starting architecture audit", {
       projectId: payload.projectId,
@@ -268,23 +298,7 @@ export const auditArchitecture = schemaTask({
     })
 
     metadata.set("status", "auditing")
-
-    const context = buildTopologyContext(payload.nodes, payload.edges, payload.chatHistory)
-    const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash"
-
-    const result = await generateText({
-      model: google(modelName),
-      system: SYSTEM_PROMPT,
-      prompt: context,
-    })
-
-    const parsedReport = parseAuditJson(result.text)
-    const markdownReport = generateMarkdownReport(parsedReport)
-
-    const finalReport: AuditReport = {
-      ...parsedReport,
-      markdownReport,
-    }
+    const finalReport = await runAuditDirect(payload)
 
     metadata.set("status", "complete")
     metadata.set("healthScore", finalReport.healthScore)

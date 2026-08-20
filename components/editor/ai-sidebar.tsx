@@ -463,21 +463,31 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
       const res = await fetch("/api/ai/audit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roomId, chatHistory, nodes, edges }),
+        body: JSON.stringify({ roomId, chatHistory, nodes, edges, direct: true }),
       })
       if (!res.ok) throw new Error("Audit request failed")
-      const { runId: newAuditRunId } = (await res.json()) as { runId: string }
+      const data = (await res.json()) as { report?: AuditReport; runId?: string }
 
-      const tokenRes = await fetch("/api/ai/audit/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ runId: newAuditRunId }),
-      })
-      if (!tokenRes.ok) throw new Error("Token request failed")
-      const { token } = (await tokenRes.json()) as { token: string }
+      if (data.report) {
+        setAuditReport(data.report)
+        setIsAuditing(false)
+        return
+      }
 
-      setAuditRunId(newAuditRunId)
-      setAuditPublicToken(token)
+      if (data.runId) {
+        const tokenRes = await fetch("/api/ai/audit/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ runId: data.runId }),
+        })
+        if (!tokenRes.ok) throw new Error("Token request failed")
+        const { token } = (await tokenRes.json()) as { token: string }
+
+        setAuditRunId(data.runId)
+        setAuditPublicToken(token)
+      } else {
+        setIsAuditing(false)
+      }
     } catch {
       setIsAuditing(false)
     }
@@ -530,21 +540,32 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
           chatHistory,
           nodes,
           edges,
+          direct: true,
         }),
       })
       if (!res.ok) throw new Error("Cost estimation failed")
-      const { runId: newCostRunId } = (await res.json()) as { runId: string }
+      const data = (await res.json()) as { report?: CostReport; runId?: string }
 
-      const tokenRes = await fetch("/api/ai/cost/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ runId: newCostRunId }),
-      })
-      if (!tokenRes.ok) throw new Error("Token request failed")
-      const { token } = (await tokenRes.json()) as { token: string }
+      if (data.report) {
+        setCostReport(data.report)
+        setIsCostEstimating(false)
+        return
+      }
 
-      setCostRunId(newCostRunId)
-      setCostPublicToken(token)
+      if (data.runId) {
+        const tokenRes = await fetch("/api/ai/cost/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ runId: data.runId }),
+        })
+        if (!tokenRes.ok) throw new Error("Token request failed")
+        const { token } = (await tokenRes.json()) as { token: string }
+
+        setCostRunId(data.runId)
+        setCostPublicToken(token)
+      } else {
+        setIsCostEstimating(false)
+      }
     } catch {
       setIsCostEstimating(false)
     }

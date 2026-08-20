@@ -381,15 +381,54 @@ ${tipsMd || "- Architecture is already cost-optimized for the target scale."}
 *Report generated automatically by Ghost AI Cloud FinOps Architect.*`
 }
 
+export async function runCostEstimateDirect(payload: {
+  nodes: Node[]
+  edges: Edge[]
+  chatHistory: ChatMessage[]
+  cloudProvider: "aws" | "gcp" | "azure"
+  trafficTier: "starter" | "growth" | "scale" | "enterprise"
+  projectId?: string
+  roomId?: string
+}): Promise<CostReport> {
+  const apiKey =
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY ??
+    process.env.GOOGLE_AI_API_KEY ??
+    process.env.GEMINI_API_KEY
+
+  const google = createGoogleGenerativeAI({
+    apiKey,
+  })
+
+  const context = buildTopologyContext(
+    payload.nodes,
+    payload.edges,
+    payload.chatHistory,
+    payload.cloudProvider,
+    payload.trafficTier
+  )
+
+  const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash"
+
+  const result = await generateText({
+    model: google(modelName),
+    system: SYSTEM_PROMPT,
+    prompt: context,
+  })
+
+  const parsedReport = parseCostJson(result.text, payload.cloudProvider, payload.trafficTier)
+  const markdownReport = generateMarkdownReport(parsedReport)
+
+  return {
+    ...parsedReport,
+    markdownReport,
+  }
+}
+
 export const estimateCost = schemaTask({
   id: "estimate-cost",
   schema: payloadSchema,
   retry: { maxAttempts: 2, minTimeoutInMs: 1000, maxTimeoutInMs: 10000, factor: 2 },
   run: async (payload) => {
-    const google = createGoogleGenerativeAI({
-      apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GOOGLE_AI_API_KEY,
-    })
-
     metadata.set("status", "starting")
     metadata.set("provider", payload.cloudProvider)
     metadata.set("tier", payload.trafficTier)
@@ -403,30 +442,7 @@ export const estimateCost = schemaTask({
     })
 
     metadata.set("status", "estimating")
-
-    const context = buildTopologyContext(
-      payload.nodes,
-      payload.edges,
-      payload.chatHistory,
-      payload.cloudProvider,
-      payload.trafficTier
-    )
-
-    const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash"
-
-    const result = await generateText({
-      model: google(modelName),
-      system: SYSTEM_PROMPT,
-      prompt: context,
-    })
-
-    const parsedReport = parseCostJson(result.text, payload.cloudProvider, payload.trafficTier)
-    const markdownReport = generateMarkdownReport(parsedReport)
-
-    const finalReport: CostReport = {
-      ...parsedReport,
-      markdownReport,
-    }
+    const finalReport = await runCostEstimateDirect(payload)
 
     metadata.set("status", "complete")
     metadata.set("totalCost", finalReport.totalMonthlyEstimate)
