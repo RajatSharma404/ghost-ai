@@ -3,7 +3,7 @@
 Update this file whenever the current phase, active feature, or implementation state changes.
 
 ## Current Phase
-- All Features 01 to 49 (Design System through Multi-Format IaC Generation & Direct AI Execution) — complete
+- All Features 01 to 50 (Design System through Direct AI Architect Canvas Generation) — complete
 
 ## Current Goal
 - All core features, AI tools, collaboration suite, and UI/UX ergonomics implemented and verified.
@@ -60,6 +60,7 @@ Update this file whenever the current phase, active feature, or implementation s
 - Feature 47 (Direct Fast-Path AI Execution & Local Dev Resilience): Added direct in-process Gemini 2.5 Flash execution functions (`runAuditDirect`, `runCostEstimateDirect`, `runAlternativesDirect`, `runIaCDirect`) across `trigger/audit-architecture.ts`, `trigger/estimate-cost.ts`, `trigger/suggest-alternatives.ts`, and `trigger/generate-iac.ts`. Updated AI API route handlers (`/api/ai/audit`, `/api/ai/cost`, `/api/ai/alternatives`, `/api/ai/iac`) to support `direct: true` execution with automatic offline fallback, eliminating hanging spinners and reducing generation times from indefinite pending states to ~3–5 seconds. TypeScript and ESLint clean.
 - Feature 48 (AI Workspace Tabs & Scrolling Ergonomics): Expanded AI Workspace sidebar width to `w-96 md:w-[440px]` to prevent tab label truncation. Added horizontal mouse wheel scrolling (`onWheel`) and category icons to all 8 AI tabs (Architect, Chat, Specs, IaC, Audit, Cost, Diff, API). Fixed vertical scrolling constraints (`flex-1 min-h-0 overflow-y-auto`) across Audit findings, Cost itemized breakdown, and Diff alternatives cards. TypeScript and ESLint clean.
 - Feature 49 (Multi-Format IaC Generation & Preview): Enhanced IaC generator to support multi-select format combinations (1, 2, or all 3: Docker Compose, Terraform AWS, Kubernetes Manifests). Updated `/api/ai/iac` route to generate multiple requested formats concurrently in parallel (~3–6s). Upgraded IaC preview modal to dynamically render tabs for all generated formats with tabbed code inspection, individual copy/download buttons, and a "Download All" bundle action. Fixed modal dialog responsive layout in `components/ui/dialog.tsx` removing `sm:max-w-sm` clamp and ensuring full 4xl modal expansion with `whitespace-pre` code formatting. TypeScript and ESLint clean.
+- Feature 50 (Direct Fast-Path AI Architect Canvas Generator): Extracted `runDesignAgentDirect` in `trigger/design-agent.ts` with direct Gemini 2.5 Flash tool-calling and Liveblocks storage mutation. Updated `app/api/ai/design/route.ts` and `components/editor/ai-sidebar.tsx` with `direct: true` support and automatic offline fallback, allowing architecture diagrams to generate and render directly onto the canvas in ~2–4 seconds without background queue delays. TypeScript and ESLint clean.
 
 ## In Progress
 

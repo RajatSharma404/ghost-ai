@@ -927,25 +927,55 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
       const designRes = await fetch("/api/ai/design", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: text, roomId, projectId }),
+        body: JSON.stringify({ prompt: text, roomId, projectId, direct: true }),
       })
 
       if (!designRes.ok) throw new Error("Design request failed")
 
-      const { runId: newRunId } = (await designRes.json()) as { runId: string }
+      const data = (await designRes.json()) as {
+        success?: boolean
+        summary?: string
+        runId?: string
+      }
 
-      const tokenRes = await fetch("/api/ai/design/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ runId: newRunId }),
-      })
+      if (data.success) {
+        const content = data.summary ?? "Design applied to canvas."
+        createFeedMessage(CHAT_FEED_ID, {
+          sender: "Ghost AI",
+          role: "assistant",
+          content,
+          timestamp: new Date().toISOString(),
+        }).catch(() => {})
 
-      if (!tokenRes.ok) throw new Error("Token request failed")
+        createFeedMessage(FEED_ID, {
+          text: content,
+          status: "complete",
+        }).catch(() => {})
 
-      const { token } = (await tokenRes.json()) as { token: string }
+        setIsLoading(false)
+        setStatusText("")
+        updateMyPresence({ thinking: false })
+        return
+      }
 
-      setRunId(newRunId)
-      setPublicToken(token)
+      if (data.runId) {
+        const tokenRes = await fetch("/api/ai/design/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ runId: data.runId }),
+        })
+
+        if (!tokenRes.ok) throw new Error("Token request failed")
+
+        const { token } = (await tokenRes.json()) as { token: string }
+
+        setRunId(data.runId)
+        setPublicToken(token)
+      } else {
+        setIsLoading(false)
+        setStatusText("")
+        updateMyPresence({ thinking: false })
+      }
     } catch {
       createFeedMessage(CHAT_FEED_ID, {
         sender: "Ghost AI",

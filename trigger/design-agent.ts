@@ -153,112 +153,128 @@ const canvasTools = {
 type ToolName = keyof typeof canvasTools;
 type ToolCall = { toolName: ToolName; input: Record<string, unknown> };
 
-export const designAgent = task({
-  id: "design-agent",
-  retry: { maxAttempts: 2 },
-  run: async (payload: { prompt: string; roomId: string; userId: string }) => {
-    const lb = getLiveblocks();
-    const google = createGoogleGenerativeAI({
-      apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GOOGLE_AI_API_KEY,
-    });
+export async function runDesignAgentDirect(payload: {
+  prompt: string
+  roomId: string
+  userId: string
+}): Promise<{ success: boolean; actionsApplied: number; summary: string }> {
+  const lb = getLiveblocks()
+  const apiKey =
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY ??
+    process.env.GOOGLE_AI_API_KEY ??
+    process.env.GEMINI_API_KEY
 
+  const google = createGoogleGenerativeAI({
+    apiKey,
+  })
+
+  await lb
+    .setPresence(payload.roomId, {
+      userId: AI_USER_ID,
+      data: { cursor: null, thinking: true },
+      userInfo: AI_USER_INFO,
+      ttl: 120_000,
+    })
+    .catch(() => {})
+
+  await lb
+    .broadcastEvent(payload.roomId, {
+      type: "ai-status",
+      message: "Ghost AI is analyzing your request…",
+      status: "start",
+    })
+    .catch(() => {})
+
+  try {
+    let canvasContext = "The canvas is currently empty — create a fresh design."
+    try {
+      const doc = await lb.getStorageDocument(payload.roomId, "json")
+      const parsed =
+        typeof doc === "string"
+          ? (JSON.parse(doc) as Record<string, unknown>)
+          : (doc as Record<string, unknown>)
+      const flow = parsed?.flow as Record<string, unknown> | undefined
+      const nodeCount = flow?.nodes ? Object.keys(flow.nodes as object).length : 0
+      if (nodeCount > 0) {
+        canvasContext = `Canvas has ${nodeCount} existing node(s). Current state:\n${JSON.stringify(flow, null, 2)}\nExtend or modify based on the request; only clear if explicitly asked.`
+      }
+    } catch {
+      // No storage yet — treat as empty
+    }
+
+    const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash"
+    const result = await generateText({
+      model: google(modelName),
+      system: buildSystemPrompt(),
+      prompt: `User request: ${payload.prompt}\n\n${canvasContext}`,
+      tools: canvasTools,
+      toolChoice: "required",
+    })
+
+    const toolCalls = result.steps.flatMap((s) => s.toolCalls) as ToolCall[]
+    const actionCalls = toolCalls.filter((c) => c.toolName !== "finalizeDesign")
+    const finalizeCall = toolCalls.find((c) => c.toolName === "finalizeDesign")
+    const summary =
+      (finalizeCall?.input as { summary?: string } | undefined)?.summary ??
+      "Design applied to canvas."
+
+    const addCount = actionCalls.filter((c) => c.toolName === "addNode").length
     await lb
-      .setPresence(payload.roomId, {
-        userId: AI_USER_ID,
-        data: { cursor: null, thinking: true },
-        userInfo: AI_USER_INFO,
-        ttl: 120_000,
+      .broadcastEvent(payload.roomId, {
+        type: "ai-status",
+        message: `Placing ${addCount} node${addCount !== 1 ? "s" : ""} on the canvas…`,
+        status: "thinking",
       })
-      .catch(() => {});
+      .catch(() => {})
+
+    await lb.mutateStorage(payload.roomId, ({ root }) => {
+      const flow = root.get("flow")
+      if (!flow) return
+      const nodes = flow.get("nodes")
+      const edges = flow.get("edges")
+
+      for (const call of actionCalls) {
+        applyToolCall(call, nodes, edges)
+      }
+    })
 
     await lb
       .broadcastEvent(payload.roomId, {
         type: "ai-status",
-        message: "Ghost AI is analyzing your request…",
-        status: "start",
+        message: summary,
+        status: "complete",
       })
-      .catch(() => {});
+      .catch(() => {})
 
-    try {
-      let canvasContext = "The canvas is currently empty — create a fresh design.";
-      try {
-        const doc = await lb.getStorageDocument(payload.roomId, "json");
-        const parsed = typeof doc === "string" ? (JSON.parse(doc) as Record<string, unknown>) : (doc as Record<string, unknown>);
-        const flow = parsed?.flow as Record<string, unknown> | undefined;
-        const nodeCount = flow?.nodes ? Object.keys(flow.nodes as object).length : 0;
-        if (nodeCount > 0) {
-          canvasContext = `Canvas has ${nodeCount} existing node(s). Current state:\n${JSON.stringify(flow, null, 2)}\nExtend or modify based on the request; only clear if explicitly asked.`;
-        }
-      } catch {
-        // No storage yet — treat as empty
-      }
+    return { success: true, actionsApplied: actionCalls.length, summary }
+  } catch (error) {
+    await lb
+      .broadcastEvent(payload.roomId, {
+        type: "ai-status",
+        message: "Ghost AI encountered an error. Please try again.",
+        status: "error",
+      })
+      .catch(() => {})
+    throw error
+  } finally {
+    await lb
+      .setPresence(payload.roomId, {
+        userId: AI_USER_ID,
+        data: { cursor: null, thinking: false },
+        userInfo: AI_USER_INFO,
+        ttl: 3_000,
+      })
+      .catch(() => {})
+  }
+}
 
-      const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-      const result = await generateText({
-        model: google(modelName),
-        system: buildSystemPrompt(),
-        prompt: `User request: ${payload.prompt}\n\n${canvasContext}`,
-        tools: canvasTools,
-        toolChoice: "required",
-      });
-
-      const toolCalls = result.steps.flatMap((s) => s.toolCalls) as ToolCall[];
-      const actionCalls = toolCalls.filter((c) => c.toolName !== "finalizeDesign");
-      const finalizeCall = toolCalls.find((c) => c.toolName === "finalizeDesign");
-      const summary =
-        (finalizeCall?.input as { summary?: string } | undefined)?.summary ??
-        "Design applied to canvas.";
-
-      const addCount = actionCalls.filter((c) => c.toolName === "addNode").length;
-      await lb
-        .broadcastEvent(payload.roomId, {
-          type: "ai-status",
-          message: `Placing ${addCount} node${addCount !== 1 ? "s" : ""} on the canvas…`,
-          status: "thinking",
-        })
-        .catch(() => { });
-
-      await lb.mutateStorage(payload.roomId, ({ root }) => {
-        const flow = root.get("flow");
-        if (!flow) return;
-        const nodes = flow.get("nodes");
-        const edges = flow.get("edges");
-
-        for (const call of actionCalls) {
-          applyToolCall(call, nodes, edges);
-        }
-      });
-
-      await lb
-        .broadcastEvent(payload.roomId, {
-          type: "ai-status",
-          message: summary,
-          status: "complete",
-        })
-        .catch(() => { });
-
-      return { success: true, actionsApplied: actionCalls.length, summary };
-    } catch (error) {
-      await lb
-        .broadcastEvent(payload.roomId, {
-          type: "ai-status",
-          message: "Ghost AI encountered an error. Please try again.",
-          status: "error",
-        })
-        .catch(() => { });
-      throw error;
-    } finally {
-      await lb
-        .setPresence(payload.roomId, {
-          userId: AI_USER_ID,
-          data: { cursor: null, thinking: false },
-          userInfo: AI_USER_INFO,
-          ttl: 3_000,
-        })
-        .catch(() => { });
-    }
+export const designAgent = task({
+  id: "design-agent",
+  retry: { maxAttempts: 2 },
+  run: async (payload: { prompt: string; roomId: string; userId: string }) => {
+    return runDesignAgentDirect(payload)
   },
-});
+})
 
 type LiveNodeLike = { get(k: string): unknown; set(k: string, v: unknown): void };
 type LiveMapLike<T> = {
