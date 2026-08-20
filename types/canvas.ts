@@ -31,6 +31,84 @@ export const SHAPE_DEFAULTS: Record<NodeShape, { width: number; height: number }
   hexagon: { width: 140, height: 120 },
 }
 
+export const BOUNDARY_TYPES = [
+  "vpc",
+  "subnet-public",
+  "subnet-private",
+  "k8s-cluster",
+  "security-zone",
+  "custom",
+] as const
+
+export type GroupBoundaryType = (typeof BOUNDARY_TYPES)[number]
+
+export interface BoundaryPreset {
+  type: GroupBoundaryType
+  label: string
+  subtitle: string
+  borderColor: string
+  fillColor: string
+  textColor: string
+  isDashed: boolean
+}
+
+export const BOUNDARY_PRESETS: Record<GroupBoundaryType, BoundaryPreset> = {
+  vpc: {
+    type: "vpc",
+    label: "AWS VPC",
+    subtitle: "10.0.0.0/16",
+    borderColor: "rgba(255, 153, 10, 0.45)",
+    fillColor: "rgba(51, 27, 0, 0.25)",
+    textColor: "#FF990A",
+    isDashed: false,
+  },
+  "subnet-public": {
+    type: "subnet-public",
+    label: "Public Subnet",
+    subtitle: "10.0.1.0/24 (IGW)",
+    borderColor: "rgba(98, 192, 115, 0.45)",
+    fillColor: "rgba(15, 46, 24, 0.25)",
+    textColor: "#62C073",
+    isDashed: true,
+  },
+  "subnet-private": {
+    type: "subnet-private",
+    label: "Private Subnet",
+    subtitle: "10.0.2.0/24 (NAT)",
+    borderColor: "rgba(82, 168, 255, 0.45)",
+    fillColor: "rgba(16, 35, 61, 0.25)",
+    textColor: "#52A8FF",
+    isDashed: true,
+  },
+  "k8s-cluster": {
+    type: "k8s-cluster",
+    label: "Kubernetes Cluster",
+    subtitle: "Namespace: default",
+    borderColor: "rgba(191, 122, 240, 0.45)",
+    fillColor: "rgba(46, 25, 56, 0.25)",
+    textColor: "#BF7AF0",
+    isDashed: false,
+  },
+  "security-zone": {
+    type: "security-zone",
+    label: "Security / DMZ Zone",
+    subtitle: "Strict Ingress Filtering",
+    borderColor: "rgba(255, 97, 102, 0.45)",
+    fillColor: "rgba(60, 22, 24, 0.25)",
+    textColor: "#FF6166",
+    isDashed: true,
+  },
+  custom: {
+    type: "custom",
+    label: "Boundary Group",
+    subtitle: "Logical Cluster",
+    borderColor: "rgba(255, 255, 255, 0.25)",
+    fillColor: "rgba(255, 255, 255, 0.03)",
+    textColor: "#EDEDED",
+    isDashed: true,
+  },
+}
+
 export interface CanvasNodeData extends Record<string, unknown> {
   label: string
   color?: string
@@ -38,9 +116,21 @@ export interface CanvasNodeData extends Record<string, unknown> {
   shape?: NodeShape
 }
 
+export interface GroupNodeData extends Record<string, unknown> {
+  label: string
+  subtitle?: string
+  boundaryType?: GroupBoundaryType
+  borderColor?: string
+  fillColor?: string
+  textColor?: string
+  isDashed?: boolean
+}
+
 export interface CanvasEdgeData extends Record<string, unknown> {
   label?: string
 }
 
-export type CanvasNode = Node<CanvasNodeData, "canvasNode">
+export type CanvasRegularNode = Node<CanvasNodeData, "canvasNode">
+export type CanvasGroupNode = Node<GroupNodeData, "groupNode">
+export type CanvasNode = CanvasRegularNode | CanvasGroupNode
 export type CanvasEdge = Edge<CanvasEdgeData, "canvasEdge">

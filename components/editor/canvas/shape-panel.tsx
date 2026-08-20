@@ -1,9 +1,22 @@
 "use client"
 
 import { useState } from "react"
-import { RectangleHorizontal, Diamond, Circle, Pill, Cylinder, Hexagon } from "lucide-react"
+import {
+  RectangleHorizontal,
+  Diamond,
+  Circle,
+  Pill,
+  Cylinder,
+  Hexagon,
+  BoxSelect,
+} from "lucide-react"
 import type { LucideIcon } from "lucide-react"
-import { NODE_SHAPES, SHAPE_DEFAULTS, NODE_COLORS, type NodeShape } from "@/types/canvas"
+import {
+  NODE_SHAPES,
+  SHAPE_DEFAULTS,
+  NODE_COLORS,
+  type NodeShape,
+} from "@/types/canvas"
 
 const SHAPE_ICONS: Record<NodeShape, LucideIcon> = {
   rectangle: RectangleHorizontal,
@@ -17,10 +30,17 @@ const SHAPE_ICONS: Record<NodeShape, LucideIcon> = {
 const PREVIEW_FILL = NODE_COLORS[0].fill
 const PREVIEW_STROKE = "rgba(255,255,255,0.3)"
 
+const GROUP_DEFAULT_SIZE = { width: 360, height: 240 }
+
 function PreviewDiamond() {
   return (
     <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
-      <polygon points="50,0 100,50 50,100 0,50" fill={PREVIEW_FILL} stroke={PREVIEW_STROKE} strokeWidth="2" />
+      <polygon
+        points="50,0 100,50 50,100 0,50"
+        fill={PREVIEW_FILL}
+        stroke={PREVIEW_STROKE}
+        strokeWidth="2"
+      />
     </svg>
   )
 }
@@ -28,7 +48,12 @@ function PreviewDiamond() {
 function PreviewHexagon() {
   return (
     <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
-      <polygon points="25,0 75,0 100,50 75,100 25,100 0,50" fill={PREVIEW_FILL} stroke={PREVIEW_STROKE} strokeWidth="2" />
+      <polygon
+        points="25,0 75,0 100,50 75,100 25,100 0,50"
+        fill={PREVIEW_FILL}
+        stroke={PREVIEW_STROKE}
+        strokeWidth="2"
+      />
     </svg>
   )
 }
@@ -51,7 +76,37 @@ function previewBorderRadius(shape: NodeShape): string {
   return "12px"
 }
 
-function ShapePreview({ shape }: { shape: NodeShape }) {
+function ShapePreview({ shape }: { shape: NodeShape | "group" }) {
+  if (shape === "group") {
+    return (
+      <div
+        style={{
+          width: GROUP_DEFAULT_SIZE.width,
+          height: GROUP_DEFAULT_SIZE.height,
+          border: "2px dashed rgba(255, 153, 10, 0.6)",
+          backgroundColor: "rgba(51, 27, 0, 0.2)",
+          borderRadius: "16px",
+          padding: "10px",
+        }}
+      >
+        <div
+          style={{
+            display: "inline-block",
+            fontSize: "11px",
+            fontWeight: "bold",
+            color: "#FF990A",
+            backgroundColor: "rgba(10, 10, 10, 0.75)",
+            padding: "4px 8px",
+            borderRadius: "8px",
+            border: "1px solid rgba(255, 255, 255, 0.1)",
+          }}
+        >
+          VPC / Subnet Boundary
+        </div>
+      </div>
+    )
+  }
+
   const { width, height } = SHAPE_DEFAULTS[shape]
   const isSvg = shape === "diamond" || shape === "hexagon" || shape === "cylinder"
 
@@ -79,7 +134,8 @@ function ShapePreview({ shape }: { shape: NodeShape }) {
 }
 
 interface DragState {
-  shape: NodeShape
+  shape: NodeShape | "group"
+  size: { width: number; height: number }
   x: number
   y: number
 }
@@ -87,8 +143,12 @@ interface DragState {
 export function ShapePanel() {
   const [drag, setDrag] = useState<DragState | null>(null)
 
-  function handleDragStart(event: React.DragEvent, shape: NodeShape) {
-    const payload = JSON.stringify({ shape, size: SHAPE_DEFAULTS[shape] })
+  function handleDragStart(
+    event: React.DragEvent,
+    shape: NodeShape | "group",
+    size: { width: number; height: number }
+  ) {
+    const payload = JSON.stringify({ shape, size })
     event.dataTransfer.setData("application/ghost-shape", payload)
     event.dataTransfer.effectAllowed = "copy"
 
@@ -99,30 +159,27 @@ export function ShapePanel() {
     event.dataTransfer.setDragImage(ghost, 0, 0)
     setTimeout(() => document.body.removeChild(ghost), 0)
 
-    setDrag({ shape, x: event.clientX, y: event.clientY })
+    setDrag({ shape, size, x: event.clientX, y: event.clientY })
   }
 
-  function handleDrag(event: React.DragEvent, shape: NodeShape) {
-    // clientX/clientY are 0,0 on the final drag event before dragend — skip it
+  function handleDrag(event: React.DragEvent, shape: NodeShape | "group", size: { width: number; height: number }) {
     if (event.clientX === 0 && event.clientY === 0) return
-    setDrag({ shape, x: event.clientX, y: event.clientY })
+    setDrag({ shape, size, x: event.clientX, y: event.clientY })
   }
 
   function handleDragEnd() {
     setDrag(null)
   }
 
-  const previewSize = drag ? SHAPE_DEFAULTS[drag.shape] : null
-
   return (
     <>
-      {drag && previewSize && (
+      {drag && (
         <div
           style={{
             position: "fixed",
-            left: drag.x - previewSize.width / 2,
-            top: drag.y - previewSize.height / 2,
-            opacity: 0.65,
+            left: drag.x - drag.size.width / 2,
+            top: drag.y - drag.size.height / 2,
+            opacity: 0.7,
             pointerEvents: "none",
             zIndex: 9999,
           }}
@@ -139,8 +196,8 @@ export function ShapePanel() {
               <button
                 key={shape}
                 draggable
-                onDragStart={(e) => handleDragStart(e, shape)}
-                onDrag={(e) => handleDrag(e, shape)}
+                onDragStart={(e) => handleDragStart(e, shape, SHAPE_DEFAULTS[shape])}
+                onDrag={(e) => handleDrag(e, shape, SHAPE_DEFAULTS[shape])}
                 onDragEnd={handleDragEnd}
                 title={shape}
                 className="flex h-8 w-8 cursor-grab items-center justify-center rounded-xl text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary active:cursor-grabbing"
@@ -149,6 +206,21 @@ export function ShapePanel() {
               </button>
             )
           })}
+
+          <div className="mx-1.5 h-4 w-px bg-border-subtle" />
+
+          {/* VPC / Boundary Group Tool */}
+          <button
+            draggable
+            onDragStart={(e) => handleDragStart(e, "group", GROUP_DEFAULT_SIZE)}
+            onDrag={(e) => handleDrag(e, "group", GROUP_DEFAULT_SIZE)}
+            onDragEnd={handleDragEnd}
+            title="VPC / Subnet Boundary Group"
+            className="flex h-8 items-center gap-1.5 cursor-grab rounded-xl px-2.5 text-xs font-medium text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary active:cursor-grabbing"
+          >
+            <BoxSelect className="h-4 w-4 text-accent-ai-text" />
+            <span>Boundary</span>
+          </button>
         </div>
       </div>
     </>

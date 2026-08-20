@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef } from "react"
-import { useMyPresence } from "@liveblocks/react"
+import { useMyPresence, useUndo, useRedo, useCanUndo, useCanRedo } from "@liveblocks/react"
 import {
   ReactFlow,
   Background,
@@ -16,10 +16,10 @@ import "@xyflow/react/dist/style.css"
 import { useReactFlow } from "@xyflow/react"
 import type { Connection } from "@xyflow/react"
 import { useLiveblocksFlow } from "@liveblocks/react-flow"
-import { useUndo, useRedo, useCanUndo, useCanRedo } from "@liveblocks/react"
 import type { CanvasNode, CanvasEdge, NodeShape } from "@/types/canvas"
-import { NODE_COLORS } from "@/types/canvas"
+import { NODE_COLORS, BOUNDARY_PRESETS } from "@/types/canvas"
 import { CanvasNodeComponent } from "@/components/editor/canvas/canvas-node"
+import { GroupNodeComponent } from "@/components/editor/canvas/group-node"
 import { CanvasEdgeComponent } from "@/components/editor/canvas/canvas-edge"
 import { ShapePanel } from "@/components/editor/canvas/shape-panel"
 import { CanvasControls } from "@/components/editor/canvas/canvas-controls"
@@ -29,7 +29,10 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts"
 import type { CanvasTemplate } from "@/components/editor/starter-templates"
 import { useCanvasAutosave, type SaveStatus } from "@/hooks/use-canvas-autosave"
 
-const nodeTypes = { canvasNode: CanvasNodeComponent }
+const nodeTypes = {
+  canvasNode: CanvasNodeComponent,
+  groupNode: GroupNodeComponent,
+}
 const edgeTypes = { canvasEdge: CanvasEdgeComponent }
 
 const CONNECTION_LINE_STYLE: React.CSSProperties = {
@@ -204,7 +207,7 @@ export function CanvasEditor({ projectId, pendingTemplate, onTemplateImported, o
       const raw = event.dataTransfer.getData("application/ghost-shape")
       if (!raw) return
 
-      let payload: { shape: NodeShape; size: { width: number; height: number } }
+      let payload: { shape: NodeShape | "group"; size: { width: number; height: number } }
       try {
         payload = JSON.parse(raw)
       } catch {
@@ -215,6 +218,30 @@ export function CanvasEditor({ projectId, pendingTemplate, onTemplateImported, o
       const position = {
         x: center.x - payload.size.width / 2,
         y: center.y - payload.size.height / 2,
+      }
+
+      if (payload.shape === "group") {
+        const id = `group-${Date.now()}-${++nodeCounter}`
+        const p = BOUNDARY_PRESETS.vpc
+        const newGroupNode: CanvasNode = {
+          id,
+          type: "groupNode",
+          position,
+          data: {
+            label: p.label,
+            subtitle: p.subtitle,
+            boundaryType: "vpc",
+            borderColor: p.borderColor,
+            fillColor: p.fillColor,
+            textColor: p.textColor,
+            isDashed: p.isDashed,
+          },
+          width: payload.size.width,
+          height: payload.size.height,
+          zIndex: -1,
+        }
+        onNodesChange([{ type: "add", item: newGroupNode }])
+        return
       }
 
       const id = generateNodeId(payload.shape)

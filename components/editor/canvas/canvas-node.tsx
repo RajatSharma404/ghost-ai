@@ -5,7 +5,7 @@ import { Handle, Position, NodeResizer, NodeToolbar } from "@xyflow/react"
 import type { NodeProps } from "@xyflow/react"
 import { useMutation } from "@liveblocks/react"
 import { LiveObject } from "@liveblocks/client"
-import type { CanvasNode, NodeShape } from "@/types/canvas"
+import type { CanvasRegularNode, NodeShape } from "@/types/canvas"
 import { NODE_COLORS } from "@/types/canvas"
 
 const DEFAULT_FILL = NODE_COLORS[0].fill
@@ -108,7 +108,7 @@ type LiveNodeData = LiveObject<{
   data: LiveObject<{ label: string; color?: string; textColor?: string; shape?: NodeShape }>
 }>
 
-export function CanvasNodeComponent({ id, data, selected }: NodeProps<CanvasNode>) {
+export function CanvasNodeComponent({ id, data, selected }: NodeProps<CanvasRegularNode>) {
   const fill = data.color ?? DEFAULT_FILL
   const textColor = data.textColor ?? DEFAULT_TEXT
   const shape = data.shape ?? "rectangle"

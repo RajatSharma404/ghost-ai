@@ -93,10 +93,15 @@ function TemplatePreview({ template }: TemplatePreviewProps) {
           const y = nd.position.y * scale + offsetY
           const nw = (nd.width ?? 140) * scale
           const nh = (nd.height ?? 60) * scale
-          const fill = nd.data.color ?? "#1F1F1F"
+          const rawData = nd.data as Record<string, unknown>
+          const fill = typeof rawData.color === "string"
+            ? rawData.color
+            : typeof rawData.fillColor === "string"
+            ? rawData.fillColor
+            : "#1F1F1F"
           const stroke = "rgba(255,255,255,0.2)"
           const sw = 1
-          const shape = nd.data.shape ?? "rectangle"
+          const shape = typeof rawData.shape === "string" ? rawData.shape : "rectangle"
 
           if (shape === "circle") {
             return (
