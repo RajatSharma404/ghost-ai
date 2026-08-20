@@ -1060,7 +1060,7 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
       >
         <DialogContent
           showCloseButton
-          className="max-w-3xl border-border-default bg-bg-surface"
+          className="sm:max-w-4xl max-w-4xl border-border-default bg-bg-surface p-6"
         >
           <DialogHeader>
             <div className="flex items-center gap-2 pr-6">
@@ -1104,7 +1104,7 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
           </div>
 
           <ScrollArea className="max-h-[60vh] rounded-xl border border-border-subtle bg-bg-elevated font-mono text-xs">
-            <pre className="overflow-x-auto p-4 leading-relaxed text-text-primary">
+            <pre className="overflow-x-auto p-4 leading-relaxed text-text-primary whitespace-pre">
               <code>
                 {scaffoldModalTab === "openapi"
                   ? scaffoldResult?.openapiYaml
@@ -1152,7 +1152,7 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
       <Dialog open={iacModalOpen} onOpenChange={(open) => { if (!open) setIacModalOpen(false) }}>
         <DialogContent
           showCloseButton
-          className="max-w-3xl border-border-default bg-bg-surface"
+          className="sm:max-w-4xl max-w-4xl border-border-default bg-bg-surface p-6"
         >
           <DialogHeader>
             <div className="flex items-center gap-2 pr-6">
@@ -1169,7 +1169,7 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
           </DialogHeader>
 
           <ScrollArea className="max-h-[65vh] rounded-xl border border-border-subtle bg-bg-elevated font-mono text-xs">
-            <pre className="p-4 text-text-primary overflow-x-auto leading-relaxed">
+            <pre className="p-4 text-text-primary overflow-x-auto leading-relaxed whitespace-pre">
               <code>{iacResult?.code}</code>
             </pre>
           </ScrollArea>
@@ -1200,7 +1200,7 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
       <Dialog open={specModalOpen} onOpenChange={(open) => { if (!open) handleModalClose() }}>
         <DialogContent
           showCloseButton
-          className="max-w-2xl border-border-default bg-bg-surface"
+          className="sm:max-w-3xl max-w-3xl border-border-default bg-bg-surface p-6"
         >
           <DialogHeader>
             <DialogTitle className="pr-6 text-sm font-medium text-text-primary">
