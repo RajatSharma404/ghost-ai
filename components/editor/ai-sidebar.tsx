@@ -314,8 +314,27 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
   const [isIacGenerating, setIsIacGenerating] = useState(false)
   const [iacRunId, setIacRunId] = useState<string | null>(null)
   const [iacPublicToken, setIacPublicToken] = useState<string | null>(null)
-  const [iacResults, setIacResults] = useState<Partial<Record<IaCFormat, IaCResult>>>({})
-  const [activeIacTab, setActiveIacTab] = useState<IaCFormat>("docker-compose")
+  const [iacResults, setIacResults] = useState<Partial<Record<IaCFormat, IaCResult>>>(() => {
+    if (typeof window === "undefined" || !projectId) return {}
+    try {
+      const raw = localStorage.getItem(`ghost_ai_iac_${projectId}`)
+      return raw ? JSON.parse(raw) : {}
+    } catch {
+      return {}
+    }
+  })
+  const [activeIacTab, setActiveIacTab] = useState<IaCFormat>(() => {
+    if (typeof window === "undefined" || !projectId) return "docker-compose"
+    try {
+      const raw = localStorage.getItem(`ghost_ai_iac_${projectId}`)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        const firstKey = Object.keys(parsed)[0] as IaCFormat | undefined
+        if (firstKey) return firstKey
+      }
+    } catch {}
+    return "docker-compose"
+  })
   const [iacModalOpen, setIacModalOpen] = useState(false)
   const [iacModalFullscreen, setIacModalFullscreen] = useState(false)
   const [iacCopied, setIacCopied] = useState(false)
@@ -324,7 +343,15 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
   const [isAuditing, setIsAuditing] = useState(false)
   const [auditRunId, setAuditRunId] = useState<string | null>(null)
   const [auditPublicToken, setAuditPublicToken] = useState<string | null>(null)
-  const [auditReport, setAuditReport] = useState<AuditReport | null>(null)
+  const [auditReport, setAuditReport] = useState<AuditReport | null>(() => {
+    if (typeof window === "undefined" || !projectId) return null
+    try {
+      const raw = localStorage.getItem(`ghost_ai_audit_${projectId}`)
+      return raw ? JSON.parse(raw) : null
+    } catch {
+      return null
+    }
+  })
   const [auditCategory, setAuditCategory] = useState<
     "all" | "security" | "reliability" | "scalability" | "compliance"
   >("all")
@@ -335,13 +362,29 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
   const [isCostEstimating, setIsCostEstimating] = useState(false)
   const [costRunId, setCostRunId] = useState<string | null>(null)
   const [costPublicToken, setCostPublicToken] = useState<string | null>(null)
-  const [costReport, setCostReport] = useState<CostReport | null>(null)
+  const [costReport, setCostReport] = useState<CostReport | null>(() => {
+    if (typeof window === "undefined" || !projectId) return null
+    try {
+      const raw = localStorage.getItem(`ghost_ai_cost_${projectId}`)
+      return raw ? JSON.parse(raw) : null
+    } catch {
+      return null
+    }
+  })
 
   // Alternatives state
   const [isAlternativesGenerating, setIsAlternativesGenerating] = useState(false)
   const [alternativesRunId, setAlternativesRunId] = useState<string | null>(null)
   const [alternativesPublicToken, setAlternativesPublicToken] = useState<string | null>(null)
-  const [alternativesReport, setAlternativesReport] = useState<AlternativesReport | null>(null)
+  const [alternativesReport, setAlternativesReport] = useState<AlternativesReport | null>(() => {
+    if (typeof window === "undefined" || !projectId) return null
+    try {
+      const raw = localStorage.getItem(`ghost_ai_diff_${projectId}`)
+      return raw ? JSON.parse(raw) : null
+    } catch {
+      return null
+    }
+  })
   const [appliedAlternativeId, setAppliedAlternativeId] = useState<string | null>(null)
 
   // API Scaffold state
@@ -349,7 +392,15 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
   const [isScaffoldGenerating, setIsScaffoldGenerating] = useState(false)
   const [scaffoldRunId, setScaffoldRunId] = useState<string | null>(null)
   const [scaffoldPublicToken, setScaffoldPublicToken] = useState<string | null>(null)
-  const [scaffoldResult, setScaffoldResult] = useState<ApiScaffoldResult | null>(null)
+  const [scaffoldResult, setScaffoldResult] = useState<ApiScaffoldResult | null>(() => {
+    if (typeof window === "undefined" || !projectId) return null
+    try {
+      const raw = localStorage.getItem(`ghost_ai_scaffold_${projectId}`)
+      return raw ? JSON.parse(raw) : null
+    } catch {
+      return null
+    }
+  })
   const [scaffoldModalOpen, setScaffoldModalOpen] = useState(false)
   const [scaffoldModalTab, setScaffoldModalTab] = useState<"openapi" | "routes">("openapi")
   const [scaffoldCopied, setScaffoldCopied] = useState(false)
@@ -378,6 +429,48 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
     createFeed(CHAT_FEED_ID).catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+
+
+  // Persist IaC results when updated
+  useEffect(() => {
+    if (!projectId || typeof window === "undefined" || Object.keys(iacResults).length === 0) return
+    try {
+      localStorage.setItem(`ghost_ai_iac_${projectId}`, JSON.stringify(iacResults))
+    } catch {}
+  }, [iacResults, projectId])
+
+  // Persist Audit report when updated
+  useEffect(() => {
+    if (!projectId || typeof window === "undefined" || !auditReport) return
+    try {
+      localStorage.setItem(`ghost_ai_audit_${projectId}`, JSON.stringify(auditReport))
+    } catch {}
+  }, [auditReport, projectId])
+
+  // Persist Cost report when updated
+  useEffect(() => {
+    if (!projectId || typeof window === "undefined" || !costReport) return
+    try {
+      localStorage.setItem(`ghost_ai_cost_${projectId}`, JSON.stringify(costReport))
+    } catch {}
+  }, [costReport, projectId])
+
+  // Persist Alternatives / Diff report when updated
+  useEffect(() => {
+    if (!projectId || typeof window === "undefined" || !alternativesReport) return
+    try {
+      localStorage.setItem(`ghost_ai_diff_${projectId}`, JSON.stringify(alternativesReport))
+    } catch {}
+  }, [alternativesReport, projectId])
+
+  // Persist API Scaffold result when updated
+  useEffect(() => {
+    if (!projectId || typeof window === "undefined" || !scaffoldResult) return
+    try {
+      localStorage.setItem(`ghost_ai_scaffold_${projectId}`, JSON.stringify(scaffoldResult))
+    } catch {}
+  }, [scaffoldResult, projectId])
 
   const fetchSpecs = useCallback(async () => {
     setSpecsLoading(true)
