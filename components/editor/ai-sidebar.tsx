@@ -31,6 +31,8 @@ import {
   Cpu,
   GitFork,
   FileCode,
+  Maximize2,
+  Minimize2,
 } from "lucide-react"
 import type { AuditReport } from "@/trigger/audit-architecture"
 import type { CostReport } from "@/trigger/estimate-cost"
@@ -44,6 +46,139 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
+
+function renderValueTokens(text: string): React.ReactNode {
+  if (!text) return null
+  const parts = text.split(/("[^"]*"|'[^']*'|\b(?:true|false|null|yes|no)\b|\b\d+\b)/g)
+  return parts.map((part, i) => {
+    if ((part.startsWith('"') && part.endsWith('"')) || (part.startsWith("'") && part.endsWith("'"))) {
+      return (
+        <span key={i} className="text-emerald-300">
+          {part}
+        </span>
+      )
+    }
+    if (/^(true|false|null|yes|no)$/i.test(part)) {
+      return (
+        <span key={i} className="text-amber-400 font-semibold">
+          {part}
+        </span>
+      )
+    }
+    if (/^\d+$/.test(part)) {
+      return (
+        <span key={i} className="text-purple-300 font-medium">
+          {part}
+        </span>
+      )
+    }
+    return (
+      <span key={i} className="text-zinc-300">
+        {part}
+      </span>
+    )
+  })
+}
+
+function highlightSyntax(line: string, format: IaCFormat): React.ReactNode {
+  const trimmed = line.trim()
+  if (!trimmed) return "\u00A0"
+
+  // Comments
+  if (trimmed.startsWith("#") || trimmed.startsWith("//")) {
+    return <span className="text-slate-500 italic">{line}</span>
+  }
+
+  // YAML (Docker Compose / Kubernetes)
+  if (format === "docker-compose" || format === "kubernetes") {
+    // List bullet item "- image: postgres"
+    const listMatch = line.match(/^(\s*-\s+)([\w\-.]+)(\s*:\s*)(.*)$/)
+    if (listMatch) {
+      const [, dash, key, colon, rest] = listMatch
+      return (
+        <span>
+          <span className="text-accent-ai-text font-bold">{dash}</span>
+          <span className="text-sky-400 font-semibold">{key}</span>
+          <span className="text-zinc-500">{colon}</span>
+          {renderValueTokens(rest)}
+        </span>
+      )
+    }
+
+    // Standard key-value "services:" or "image: node:alpine"
+    const keyMatch = line.match(/^(\s*)([\w\-.]+)(\s*:\s*)(.*)$/)
+    if (keyMatch) {
+      const [, indent, key, colon, rest] = keyMatch
+      return (
+        <span>
+          {indent}
+          <span className="text-sky-400 font-semibold">{key}</span>
+          <span className="text-zinc-500">{colon}</span>
+          {renderValueTokens(rest)}
+        </span>
+      )
+    }
+  }
+
+  // Terraform HCL
+  if (format === "terraform") {
+    const blockMatch = line.match(/^(\s*)(resource|variable|provider|output|module|data)(\s+)(.*)$/)
+    if (blockMatch) {
+      const [, indent, keyword, space, rest] = blockMatch
+      return (
+        <span>
+          {indent}
+          <span className="text-purple-400 font-bold">{keyword}</span>
+          {space}
+          {renderValueTokens(rest)}
+        </span>
+      )
+    }
+
+    const assignMatch = line.match(/^(\s*)([\w\-_]+)(\s*=\s*)(.*)$/)
+    if (assignMatch) {
+      const [, indent, key, eq, rest] = assignMatch
+      return (
+        <span>
+          {indent}
+          <span className="text-sky-400">{key}</span>
+          <span className="text-pink-400 font-semibold">{eq}</span>
+          {renderValueTokens(rest)}
+        </span>
+      )
+    }
+  }
+
+  return renderValueTokens(line)
+}
+
+function FormattedCodeBlock({ code, format }: { code: string; format: IaCFormat }) {
+  const lines = (code || "").split("\n")
+
+  return (
+    <div className="flex font-mono text-xs leading-relaxed select-text min-w-full">
+      {/* Line Numbers Gutter */}
+      <div className="shrink-0 select-none border-r border-border-subtle bg-bg-surface/60 py-4 px-3.5 text-right text-text-faint font-mono">
+        {lines.map((_, i) => (
+          <div key={i} className="text-[11px] leading-relaxed opacity-50">
+            {i + 1}
+          </div>
+        ))}
+      </div>
+
+      {/* Code Content */}
+      <pre className="flex-1 overflow-x-auto p-4 text-text-primary whitespace-pre font-mono">
+        <code>
+          {lines.map((line, i) => (
+            <div key={i} className="leading-relaxed hover:bg-bg-elevated/50 px-1.5 -mx-1.5 rounded-xs transition-colors">
+              {highlightSyntax(line, format)}
+            </div>
+          ))}
+        </code>
+      </pre>
+    </div>
+  )
+}
 import {
   Dialog,
   DialogContent,
@@ -182,6 +317,7 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
   const [iacResults, setIacResults] = useState<Partial<Record<IaCFormat, IaCResult>>>({})
   const [activeIacTab, setActiveIacTab] = useState<IaCFormat>("docker-compose")
   const [iacModalOpen, setIacModalOpen] = useState(false)
+  const [iacModalFullscreen, setIacModalFullscreen] = useState(false)
   const [iacCopied, setIacCopied] = useState(false)
 
   // Audit state
@@ -1275,27 +1411,72 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
       </Dialog>
 
       {/* IaC preview modal */}
-      <Dialog open={iacModalOpen} onOpenChange={(open) => { if (!open) setIacModalOpen(false) }}>
+      <Dialog
+        open={iacModalOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIacModalOpen(false)
+            setIacModalFullscreen(false)
+          }
+        }}
+      >
         <DialogContent
-          showCloseButton
-          className="sm:max-w-4xl max-w-4xl border-border-default bg-bg-surface p-6"
+          showCloseButton={false}
+          className={cn(
+            "border-border-default bg-bg-surface p-0 overflow-hidden flex flex-col transition-all duration-200 shadow-2xl",
+            iacModalFullscreen
+              ? "sm:max-w-[96vw] max-w-[96vw] w-[96vw] h-[92vh] max-h-[92vh] rounded-2xl"
+              : "sm:max-w-5xl max-w-5xl w-[90vw] max-h-[82vh] h-[82vh] rounded-2xl"
+          )}
         >
-          <DialogHeader>
-            <div className="flex items-center justify-between pr-6">
-              <div className="flex items-center gap-2">
-                <Code2 className="h-4 w-4 text-accent-ai-text" />
-                <DialogTitle className="text-sm font-medium text-text-primary">
+          {/* Top Title & Controls Bar */}
+          <div className="flex shrink-0 items-center justify-between border-b border-border-default bg-bg-subtle/40 px-5 py-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-ai/15 text-accent-ai-text">
+                <Code2 className="h-4 w-4" />
+              </div>
+              <div>
+                <DialogTitle className="text-sm font-semibold text-text-primary">
                   Infrastructure as Code
                 </DialogTitle>
-                <span className="rounded-full bg-accent-ai/15 px-2 py-0.5 text-[10px] font-medium text-accent-ai-text uppercase">
-                  {Object.keys(iacResults).length} generated
-                </span>
+                <p className="text-[10px] text-text-muted">
+                  {Object.keys(iacResults).length} format{Object.keys(iacResults).length > 1 ? "s" : ""} generated from architecture topology
+                </p>
               </div>
             </div>
-          </DialogHeader>
 
-          {/* Format Tabs Switcher */}
-          <div className="flex gap-2 border-b border-border-subtle pb-2 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-accent-ai/15 px-2.5 py-0.5 text-[10px] font-semibold text-accent-ai-text uppercase">
+                {activeIacTab === "docker-compose" ? "Docker" : activeIacTab === "terraform" ? "Terraform AWS" : "Kubernetes"}
+              </span>
+
+              {/* Fullscreen Toggle */}
+              <button
+                type="button"
+                onClick={() => setIacModalFullscreen((prev) => !prev)}
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-bg-subtle hover:text-text-primary"
+                title={iacModalFullscreen ? "Exit Fullscreen" : "Maximize Fullscreen"}
+              >
+                {iacModalFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+              </button>
+
+              {/* Close Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIacModalOpen(false)
+                  setIacModalFullscreen(false)
+                }}
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-bg-subtle hover:text-text-primary"
+                title="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* VS Code Style Editor Tabs */}
+          <div className="flex shrink-0 items-center gap-1 border-b border-border-subtle bg-bg-surface px-4 pt-2">
             {(["docker-compose", "terraform", "kubernetes"] as const).map((fmt) => {
               const res = iacResults[fmt]
               if (!res) return null
@@ -1307,6 +1488,7 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
                   : "k8s.yaml"
               const icon =
                 fmt === "docker-compose" ? "🐳" : fmt === "terraform" ? "🌐" : "☸️"
+              const isActive = activeIacTab === fmt
 
               return (
                 <button
@@ -1314,59 +1496,71 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
                   type="button"
                   onClick={() => setActiveIacTab(fmt)}
                   className={cn(
-                    "flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition-colors",
-                    activeIacTab === fmt
-                      ? "bg-accent-ai text-white shadow-xs"
-                      : "bg-bg-subtle text-text-muted hover:text-text-primary"
+                    "relative flex items-center gap-2 rounded-t-xl px-4 py-2 text-xs font-medium transition-all border-t border-x",
+                    isActive
+                      ? "bg-bg-elevated text-text-primary border-border-default font-semibold shadow-xs"
+                      : "bg-bg-subtle/50 text-text-muted border-transparent hover:text-text-secondary hover:bg-bg-subtle"
                   )}
                 >
-                  <span>{icon}</span>
-                  <span>{label}</span>
-                  <span className="rounded px-1 text-[9px] uppercase opacity-80">
+                  <span className="text-sm">{icon}</span>
+                  <span className="font-mono">{label}</span>
+                  <span className="rounded bg-accent-ai/10 px-1 py-0.2 text-[9px] uppercase opacity-75">
                     {fmt === "docker-compose" ? "Compose" : fmt === "terraform" ? "AWS" : "K8s"}
                   </span>
+                  {isActive && (
+                    <span className="absolute -bottom-px left-0 right-0 h-0.5 bg-accent-ai" />
+                  )}
                 </button>
               )
             })}
           </div>
 
-          <ScrollArea className="max-h-[60vh] rounded-xl border border-border-subtle bg-bg-elevated font-mono text-xs">
-            <pre className="p-4 text-text-primary overflow-x-auto leading-relaxed whitespace-pre font-mono">
-              <code>{activeIacResult?.code || "No code available."}</code>
-            </pre>
-          </ScrollArea>
+          {/* Code Viewer Body */}
+          <div className="flex-1 min-h-0 overflow-y-auto bg-bg-elevated/90 font-mono text-xs">
+            <FormattedCodeBlock
+              code={activeIacResult?.code || "No code available."}
+              format={activeIacTab}
+            />
+          </div>
 
-          <div className="flex items-center justify-between border-t border-border-default pt-3">
-            <span className="text-xs text-text-muted">
-              Viewing <code className="font-mono text-accent-ai-text">{activeIacResult?.filename}</code>
-            </span>
+          {/* Footer Bar */}
+          <div className="flex shrink-0 items-center justify-between border-t border-border-default bg-bg-subtle/40 px-5 py-3">
+            <div className="flex items-center gap-3 text-xs text-text-muted">
+              <span>
+                File: <code className="font-mono text-accent-ai-text font-semibold">{activeIacResult?.filename}</code>
+              </span>
+              <span className="text-border-default">•</span>
+              <span>{(activeIacResult?.code || "").split("\n").length} lines</span>
+              <span className="text-border-default">•</span>
+              <span>{Math.round(((activeIacResult?.code || "").length / 1024) * 10) / 10} KB</span>
+            </div>
 
             <div className="flex items-center gap-2">
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => handleCopyIac()}
-                className="h-7 gap-1.5 rounded-lg border-border-subtle px-3 text-xs text-text-secondary hover:border-border-default hover:text-text-primary"
+                className="h-8 gap-1.5 rounded-lg border-border-subtle px-3.5 text-xs text-text-secondary hover:border-border-default hover:text-text-primary"
               >
-                {iacCopied ? <Check className="h-3 w-3 text-state-success" /> : <Copy className="h-3 w-3" />}
+                {iacCopied ? <Check className="h-3.5 w-3.5 text-state-success" /> : <Copy className="h-3.5 w-3.5" />}
                 {iacCopied ? "Copied!" : `Copy ${activeIacResult?.filename ?? "Code"}`}
               </Button>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => handleDownloadIac()}
-                className="h-7 gap-1.5 rounded-lg border-border-subtle px-3 text-xs text-text-secondary hover:border-border-default hover:text-text-primary"
+                className="h-8 gap-1.5 rounded-lg border-border-subtle px-3.5 text-xs text-text-secondary hover:border-border-default hover:text-text-primary"
               >
-                <Download className="h-3 w-3" />
+                <Download className="h-3.5 w-3.5" />
                 Download {activeIacResult?.filename ?? "File"}
               </Button>
               {Object.keys(iacResults).length > 1 && (
                 <Button
                   size="sm"
                   onClick={handleDownloadAllIac}
-                  className="h-7 gap-1.5 rounded-lg bg-accent-ai px-3 text-xs text-white hover:bg-accent-ai/80"
+                  className="h-8 gap-1.5 rounded-lg bg-accent-ai px-4 text-xs text-white hover:bg-accent-ai/80"
                 >
-                  <Download className="h-3 w-3" />
+                  <Download className="h-3.5 w-3.5" />
                   Download All ({Object.keys(iacResults).length} files)
                 </Button>
               )}
