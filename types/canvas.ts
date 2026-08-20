@@ -129,6 +129,9 @@ export interface GroupNodeData extends Record<string, unknown> {
 
 export interface CanvasEdgeData extends Record<string, unknown> {
   label?: string
+  isSimulating?: boolean
+  trafficType?: "http" | "grpc" | "kafka" | "db" | "default"
+  speed?: number
 }
 
 export type CanvasRegularNode = Node<CanvasNodeData, "canvasNode">

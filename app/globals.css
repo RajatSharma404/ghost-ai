@@ -118,3 +118,16 @@
   --sidebar-border: #2a2a30;
   --sidebar-ring: #00c8d4;
 }
+
+@keyframes flow-dash {
+  from {
+    stroke-dashoffset: 24;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-flow-dash {
+  animation: flow-dash 1.2s linear infinite;
+}

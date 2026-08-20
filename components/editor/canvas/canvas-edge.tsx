@@ -8,8 +8,30 @@ import { LiveObject } from "@liveblocks/client"
 import type { CanvasEdge } from "@/types/canvas"
 
 type LiveEdgeData = LiveObject<{
-  data: LiveObject<{ label?: string }>
+  data: LiveObject<{
+    label?: string
+    isSimulating?: boolean
+    trafficType?: "http" | "grpc" | "kafka" | "db" | "default"
+    speed?: number
+  }>
 }>
+
+function getFlowColor(label: string, trafficType?: string): string {
+  const l = label.toLowerCase()
+  if (trafficType === "kafka" || l.includes("kafka") || l.includes("queue") || l.includes("event") || l.includes("amqp") || l.includes("pubsub")) {
+    return "#BF7AF0" // Purple for Event-Driven
+  }
+  if (trafficType === "db" || l.includes("db") || l.includes("postgres") || l.includes("redis") || l.includes("sql") || l.includes("query")) {
+    return "#62C073" // Emerald for Database / Cache
+  }
+  if (trafficType === "grpc" || l.includes("grpc") || l.includes("proto") || l.includes("tcp")) {
+    return "#FF990A" // Amber for gRPC / Low-latency TCP
+  }
+  if (trafficType === "http" || l.includes("http") || l.includes("rest") || l.includes("api") || l.includes("json")) {
+    return "#52A8FF" // Cyan for HTTP / Web
+  }
+  return "#00c8d4" // Default Accent Cyan
+}
 
 export function CanvasEdgeComponent({
   id,
@@ -47,8 +69,20 @@ export function CanvasEdgeComponent({
   })
 
   const label = data?.label ?? ""
+  const isSimulating = Boolean(data?.isSimulating)
+  const speed = typeof data?.speed === "number" && data.speed > 0 ? data.speed : 1
+  const flowColor = getFlowColor(label, data?.trafficType)
+
+  const baseDuration = 1.8 / speed
+  const dur = `${baseDuration.toFixed(2)}s`
+  const halfDur = `${(baseDuration / 2).toFixed(2)}s`
+
   const isActive = selected || isHovered || isEditing
-  const stroke = isActive ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.35)"
+  const stroke = isSimulating
+    ? flowColor
+    : isActive
+    ? "rgba(255,255,255,0.7)"
+    : "rgba(255,255,255,0.35)"
 
   const startEditing = useCallback(
     (e: React.MouseEvent) => {
@@ -82,22 +116,56 @@ export function CanvasEdgeComponent({
         d={edgePath}
         fill="none"
         stroke="transparent"
-        strokeWidth={20}
+        strokeWidth={22}
         className="cursor-pointer"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onDoubleClick={startEditing}
       />
+
+      {/* Base Edge Line */}
       <BaseEdge
         path={edgePath}
         markerEnd={markerEnd}
         style={{
           stroke,
-          strokeWidth: 1.5,
+          strokeWidth: isSimulating ? 1.8 : 1.5,
           strokeLinecap: "round",
           transition: "stroke 0.15s",
+          opacity: isSimulating ? 0.6 : 1,
         }}
       />
+
+      {/* Animated Flow Layer when Simulate Flow is active */}
+      {isSimulating && (
+        <>
+          {/* Flowing electric dashed trace */}
+          <path
+            d={edgePath}
+            fill="none"
+            stroke={flowColor}
+            strokeWidth={2}
+            strokeDasharray="6 12"
+            className="animate-flow-dash pointer-events-none"
+            style={{
+              filter: `drop-shadow(0 0 5px ${flowColor})`,
+              animationDuration: dur,
+              opacity: 0.85,
+            }}
+          />
+
+          {/* Leading packet circle */}
+          <circle r={3.5} fill="#FFFFFF" className="pointer-events-none" style={{ filter: `drop-shadow(0 0 6px ${flowColor})` }}>
+            <animateMotion path={edgePath} dur={dur} repeatCount="indefinite" />
+          </circle>
+
+          {/* Trailing packet circle */}
+          <circle r={2.5} fill={flowColor} className="pointer-events-none" style={{ filter: `drop-shadow(0 0 4px ${flowColor})` }}>
+            <animateMotion path={edgePath} dur={dur} begin={halfDur} repeatCount="indefinite" />
+          </circle>
+        </>
+      )}
+
       <EdgeLabelRenderer>
         <div
           style={{
@@ -137,14 +205,16 @@ export function CanvasEdgeComponent({
               onPointerDown={(e) => e.stopPropagation()}
               style={{
                 background: "var(--color-bg-surface)",
-                color: "var(--color-text-primary)",
-                border: "1px solid rgba(255,255,255,0.15)",
+                color: isSimulating ? flowColor : "var(--color-text-primary)",
+                border: isSimulating ? `1px solid ${flowColor}66` : "1px solid rgba(255,255,255,0.15)",
                 borderRadius: 9999,
                 padding: "2px 10px",
-                fontSize: 12,
+                fontSize: 11,
+                fontWeight: 500,
                 cursor: "pointer",
                 whiteSpace: "nowrap",
                 userSelect: "none",
+                boxShadow: isSimulating ? `0 0 8px ${flowColor}33` : "none",
               }}
             >
               {label}

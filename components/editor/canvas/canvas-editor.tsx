@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef, useState, useMemo } from "react"
 import { useMyPresence, useUndo, useRedo, useCanUndo, useCanRedo } from "@liveblocks/react"
 import {
   ReactFlow,
@@ -259,6 +259,29 @@ export function CanvasEditor({ projectId, pendingTemplate, onTemplateImported, o
     [screenToFlowPosition, onNodesChange]
   )
 
+  const [isSimulating, setIsSimulating] = useState(false)
+  const [simulationSpeed, setSimulationSpeed] = useState<number>(1)
+
+  const toggleSimulate = useCallback(() => {
+    setIsSimulating((prev) => !prev)
+  }, [])
+
+  const cycleSpeed = useCallback(() => {
+    setSimulationSpeed((prev) => (prev === 1 ? 2 : prev === 2 ? 0.5 : 1))
+  }, [])
+
+  const displayedEdges = useMemo(() => {
+    if (!isSimulating) return edges
+    return edges.map((e) => ({
+      ...e,
+      data: {
+        ...e.data,
+        isSimulating: true,
+        speed: simulationSpeed,
+      },
+    }))
+  }, [edges, isSimulating, simulationSpeed])
+
   return (
     <div
       ref={wrapperRef}
@@ -270,7 +293,7 @@ export function CanvasEditor({ projectId, pendingTemplate, onTemplateImported, o
     >
       <ReactFlow
         nodes={nodes}
-        edges={edges}
+        edges={displayedEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
@@ -296,6 +319,10 @@ export function CanvasEditor({ projectId, pendingTemplate, onTemplateImported, o
         onRedo={redo}
         canUndo={canUndo}
         canRedo={canRedo}
+        isSimulating={isSimulating}
+        onToggleSimulate={toggleSimulate}
+        simulationSpeed={simulationSpeed}
+        onCycleSpeed={cycleSpeed}
       />
       <ShapePanel />
       <PresenceCursors />
