@@ -93,37 +93,32 @@ Structure the spec as follows:
 
 Write in clear, professional technical language. Use Markdown headers, bullet points, and code blocks where appropriate. Be specific and actionable.`
 
-export const generateSpec = schemaTask({
-  id: "generate-spec",
-  schema: payloadSchema,
-  retry: { maxAttempts: 2, minTimeoutInMs: 1000, maxTimeoutInMs: 10000, factor: 2 },
-  run: async (payload) => {
-    const google = createGoogleGenerativeAI({
-      apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GOOGLE_AI_API_KEY,
-    })
+export async function runSpecDirect(
+  payload: z.infer<typeof payloadSchema>
+): Promise<{ spec: string; specId: string }> {
+  const apiKey =
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY ??
+    process.env.GOOGLE_AI_API_KEY ??
+    process.env.GEMINI_API_KEY
 
-    metadata.set("status", "starting")
-    logger.info("Generating spec", {
-      projectId: payload.projectId,
-      nodeCount: payload.nodes.length,
-      edgeCount: payload.edges.length,
-    })
+  const google = createGoogleGenerativeAI({
+    apiKey,
+  })
 
-    metadata.set("status", "generating")
+  const context = buildContext(payload.nodes, payload.edges, payload.chatHistory)
+  const modelName =
+    process.env.GEMINI_SPEC_MODEL || process.env.GEMINI_MODEL || "gemini-2.5-flash"
 
-    const context = buildContext(payload.nodes, payload.edges, payload.chatHistory)
+  const result = await generateText({
+    model: google(modelName),
+    system: SYSTEM_PROMPT,
+    prompt: context,
+  })
 
-    const modelName = process.env.GEMINI_SPEC_MODEL || process.env.GEMINI_MODEL || "gemini-2.5-flash"
-    const result = await generateText({
-      model: google(modelName),
-      system: SYSTEM_PROMPT,
-      prompt: context,
-    })
+  const spec = result.text
+  let specId = `spec-${Date.now()}`
 
-    const spec = result.text
-
-    metadata.set("status", "uploading")
-
+  try {
     const blob = await put(
       `specs/${payload.projectId}/${Date.now()}.md`,
       spec,
@@ -141,12 +136,45 @@ export const generateSpec = schemaTask({
         filePath: blob.url,
       },
     })
+    specId = record.id
+  } catch (err) {
+    console.error("Vercel Blob / Prisma save error in runSpecDirect:", err)
+    try {
+      const record = await prisma.projectSpec.create({
+        data: {
+          projectId: payload.projectId,
+          filePath: `data:text/markdown;base64,${Buffer.from(spec).toString("base64")}`,
+        },
+      })
+      specId = record.id
+    } catch {
+      // Ignore fallback error
+    }
+  }
+
+  return { spec, specId }
+}
+
+export const generateSpec = schemaTask({
+  id: "generate-spec",
+  schema: payloadSchema,
+  retry: { maxAttempts: 2, minTimeoutInMs: 1000, maxTimeoutInMs: 10000, factor: 2 },
+  run: async (payload) => {
+    metadata.set("status", "starting")
+    logger.info("Generating spec", {
+      projectId: payload.projectId,
+      nodeCount: payload.nodes.length,
+      edgeCount: payload.edges.length,
+    })
+
+    metadata.set("status", "generating")
+    const res = await runSpecDirect(payload)
 
     metadata.set("status", "complete")
-    metadata.set("specLength", spec.length)
-    metadata.set("specId", record.id)
-    logger.info("Spec generated and saved", { length: spec.length, specId: record.id })
+    metadata.set("specLength", res.spec.length)
+    metadata.set("specId", res.specId)
+    logger.info("Spec generated and saved", { length: res.spec.length, specId: res.specId })
 
-    return { spec, specId: record.id }
+    return res
   },
 })

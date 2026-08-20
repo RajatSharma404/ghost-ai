@@ -20,15 +20,30 @@ export async function GET(
   })
   if (!spec) return Response.json({ error: "Not found" }, { status: 404 })
 
-  const result = await get(spec.filePath, { access: "private" })
-  if (!result || result.statusCode !== 200 || !result.stream) {
-    return Response.json({ error: "File not found" }, { status: 404 })
+  if (spec.filePath.startsWith("data:")) {
+    const base64Part = spec.filePath.split(",")[1] ?? ""
+    const content = Buffer.from(base64Part, "base64").toString("utf-8")
+    return new Response(content, {
+      headers: {
+        "Content-Type": "text/markdown; charset=utf-8",
+        "Content-Disposition": `attachment; filename="spec-${specId}.md"`,
+      },
+    })
   }
 
-  return new Response(result.stream, {
-    headers: {
-      "Content-Type": "text/markdown; charset=utf-8",
-      "Content-Disposition": `attachment; filename="spec-${specId}.md"`,
-    },
-  })
+  try {
+    const result = await get(spec.filePath, { access: "private" })
+    if (result && result.statusCode === 200 && result.stream) {
+      return new Response(result.stream, {
+        headers: {
+          "Content-Type": "text/markdown; charset=utf-8",
+          "Content-Disposition": `attachment; filename="spec-${specId}.md"`,
+        },
+      })
+    }
+  } catch (err) {
+    console.error("Error downloading spec from blob:", err)
+  }
+
+  return Response.json({ error: "File not found" }, { status: 404 })
 }

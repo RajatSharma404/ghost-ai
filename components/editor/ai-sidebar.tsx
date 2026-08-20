@@ -352,25 +352,44 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
       const res = await fetch("/api/ai/spec", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roomId, chatHistory, nodes, edges }),
+        body: JSON.stringify({ roomId, chatHistory, nodes, edges, direct: true }),
       })
       if (!res.ok) throw new Error("Spec generation failed")
-      const { runId: newSpecRunId } = (await res.json()) as { runId: string }
+      const data = (await res.json()) as { spec?: string; specId?: string; runId?: string }
 
-      const tokenRes = await fetch("/api/ai/spec/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ runId: newSpecRunId }),
-      })
-      if (!tokenRes.ok) throw new Error("Token request failed")
-      const { token } = (await tokenRes.json()) as { token: string }
+      if (data.spec && data.specId) {
+        setIsSpecGenerating(false)
+        const newSpecItem: SpecItem = {
+          id: data.specId,
+          filePath: `specs/${projectId}/${data.specId}.md`,
+          createdAt: new Date().toISOString(),
+        }
+        setSpecs((prev) => [newSpecItem, ...prev.filter((s) => s.id !== data.specId)])
+        setSelectedSpec(newSpecItem)
+        setSpecContent(data.spec)
+        setSpecContentLoading(false)
+        setSpecModalOpen(true)
+        return
+      }
 
-      setSpecRunId(newSpecRunId)
-      setSpecPublicToken(token)
+      if (data.runId) {
+        const tokenRes = await fetch("/api/ai/spec/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ runId: data.runId }),
+        })
+        if (!tokenRes.ok) throw new Error("Token request failed")
+        const { token } = (await tokenRes.json()) as { token: string }
+
+        setSpecRunId(data.runId)
+        setSpecPublicToken(token)
+      } else {
+        setIsSpecGenerating(false)
+      }
     } catch {
       setIsSpecGenerating(false)
     }
-  }, [isSpecGenerating, roomId, nodesArray, edgesArray, validatedChatMessages])
+  }, [isSpecGenerating, roomId, projectId, nodesArray, edgesArray, validatedChatMessages])
 
   const toggleIacFormat = useCallback((format: IaCFormat) => {
     setSelectedIacFormats((prev) => {
@@ -815,21 +834,33 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
           chatHistory,
           nodes,
           edges,
+          direct: true,
         }),
       })
       if (!res.ok) throw new Error("Scaffold request failed")
-      const { runId: newScaffoldRunId } = (await res.json()) as { runId: string }
+      const data = (await res.json()) as { result?: ApiScaffoldResult; runId?: string }
 
-      const tokenRes = await fetch("/api/ai/scaffold/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ runId: newScaffoldRunId }),
-      })
-      if (!tokenRes.ok) throw new Error("Token request failed")
-      const { token } = (await tokenRes.json()) as { token: string }
+      if (data.result) {
+        setIsScaffoldGenerating(false)
+        setScaffoldResult(data.result)
+        setScaffoldModalOpen(true)
+        return
+      }
 
-      setScaffoldRunId(newScaffoldRunId)
-      setScaffoldPublicToken(token)
+      if (data.runId) {
+        const tokenRes = await fetch("/api/ai/scaffold/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ runId: data.runId }),
+        })
+        if (!tokenRes.ok) throw new Error("Token request failed")
+        const { token } = (await tokenRes.json()) as { token: string }
+
+        setScaffoldRunId(data.runId)
+        setScaffoldPublicToken(token)
+      } else {
+        setIsScaffoldGenerating(false)
+      }
     } catch {
       setIsScaffoldGenerating(false)
     }

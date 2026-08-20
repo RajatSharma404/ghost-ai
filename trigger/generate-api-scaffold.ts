@@ -185,15 +185,42 @@ function parseScaffoldJson(rawText: string, framework: "nextjs" | "fastapi" | "e
   }
 }
 
+export async function runScaffoldDirect(
+  payload: z.infer<typeof payloadSchema>
+): Promise<ApiScaffoldResult> {
+  const apiKey =
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY ??
+    process.env.GOOGLE_AI_API_KEY ??
+    process.env.GEMINI_API_KEY
+
+  const google = createGoogleGenerativeAI({
+    apiKey,
+  })
+
+  const context = buildTopologyContext(
+    payload.nodes,
+    payload.edges,
+    payload.chatHistory,
+    payload.framework
+  )
+
+  const systemPrompt = SYSTEM_PROMPTS[payload.framework] ?? SYSTEM_PROMPTS["nextjs"]
+  const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash"
+
+  const result = await generateText({
+    model: google(modelName),
+    system: systemPrompt,
+    prompt: context,
+  })
+
+  return parseScaffoldJson(result.text, payload.framework)
+}
+
 export const generateApiScaffold = schemaTask({
   id: "generate-api-scaffold",
   schema: payloadSchema,
   retry: { maxAttempts: 2, minTimeoutInMs: 1000, maxTimeoutInMs: 10000, factor: 2 },
   run: async (payload) => {
-    const google = createGoogleGenerativeAI({
-      apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GOOGLE_AI_API_KEY,
-    })
-
     metadata.set("status", "starting")
     metadata.set("framework", payload.framework)
 
@@ -205,24 +232,7 @@ export const generateApiScaffold = schemaTask({
     })
 
     metadata.set("status", "generating")
-
-    const context = buildTopologyContext(
-      payload.nodes,
-      payload.edges,
-      payload.chatHistory,
-      payload.framework
-    )
-
-    const systemPrompt = SYSTEM_PROMPTS[payload.framework] ?? SYSTEM_PROMPTS["nextjs"]
-    const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash"
-
-    const result = await generateText({
-      model: google(modelName),
-      system: systemPrompt,
-      prompt: context,
-    })
-
-    const scaffold = parseScaffoldJson(result.text, payload.framework)
+    const scaffold = await runScaffoldDirect(payload)
 
     metadata.set("status", "complete")
     metadata.set("endpointsCount", scaffold.endpointsCount)

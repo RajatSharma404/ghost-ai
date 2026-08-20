@@ -147,11 +147,16 @@ function NodeMetadataDrawerContent({
   ])
 
   return (
-    <aside
-      className={cn(
-        "fixed inset-y-3 right-3 top-15 z-40 flex w-96 flex-col rounded-3xl border border-border-subtle bg-bg-surface/95 shadow-2xl backdrop-blur-xl transition-all duration-200"
-      )}
-    >
+    <>
+      <div
+        className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs transition-opacity animate-in fade-in"
+        onClick={onClose}
+      />
+      <aside
+        className={cn(
+          "fixed inset-y-3 right-3 top-15 z-50 flex w-96 md:w-[420px] flex-col rounded-3xl border border-border-default bg-bg-surface/98 shadow-2xl backdrop-blur-2xl transition-all duration-200 animate-in fade-in slide-in-from-right-5"
+        )}
+      >
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between border-b border-border-default px-5 py-4">
         <div className="flex items-center gap-2.5">
@@ -444,5 +449,6 @@ function NodeMetadataDrawerContent({
         </Button>
       </div>
     </aside>
+  </>
   )
 }
