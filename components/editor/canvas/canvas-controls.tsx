@@ -1,7 +1,19 @@
 "use client"
 
-import { Minus, Maximize, Plus, Undo2, Redo2, Activity } from "lucide-react"
+import { useState } from "react"
+import {
+  Minus,
+  Maximize,
+  Plus,
+  Undo2,
+  Redo2,
+  Activity,
+  Workflow,
+  ArrowRight,
+  ArrowDown,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
+import type { LayoutDirection } from "@/lib/auto-layout"
 
 interface CanvasControlsProps {
   onZoomOut: () => void
@@ -15,6 +27,7 @@ interface CanvasControlsProps {
   onToggleSimulate?: () => void
   simulationSpeed?: number
   onCycleSpeed?: () => void
+  onAutoLayout?: (direction: LayoutDirection) => void
 }
 
 export function CanvasControls({
@@ -29,7 +42,10 @@ export function CanvasControls({
   onToggleSimulate,
   simulationSpeed = 1,
   onCycleSpeed,
+  onAutoLayout,
 }: CanvasControlsProps) {
+  const [layoutMenuOpen, setLayoutMenuOpen] = useState(false)
+
   return (
     <div className="absolute bottom-4 left-4 z-10 flex items-center gap-0.5 rounded-full border border-border-default bg-bg-surface/95 px-2 py-1.5 shadow-xl backdrop-blur-xl">
       <ControlButton onClick={onZoomOut} title="Zoom out">
@@ -50,6 +66,63 @@ export function CanvasControls({
       <ControlButton onClick={onRedo} title="Redo" disabled={!canRedo}>
         <Redo2 className="h-3.5 w-3.5" />
       </ControlButton>
+
+      {/* Auto-Layout / Tidy Button */}
+      {onAutoLayout && (
+        <>
+          <div className="mx-1 h-4 w-px bg-border-default" />
+
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setLayoutMenuOpen((prev) => !prev)}
+              title="Tidy Diagram (Auto-Layout)"
+              className={cn(
+                "flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium transition-all",
+                layoutMenuOpen
+                  ? "bg-bg-elevated text-text-primary"
+                  : "text-text-muted hover:bg-bg-elevated hover:text-text-primary"
+              )}
+            >
+              <Workflow className="h-3.5 w-3.5 text-accent-ai-text" />
+              <span>Tidy</span>
+            </button>
+
+            {layoutMenuOpen && (
+              <div
+                className="absolute bottom-9 left-0 flex flex-col gap-1 rounded-2xl border border-border-default bg-bg-surface p-1.5 shadow-2xl backdrop-blur-xl"
+                style={{ minWidth: 150 }}
+              >
+                <div className="px-2 py-1 text-[10px] font-semibold text-text-muted">
+                  Auto-Layout Flow
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLayoutMenuOpen(false)
+                    onAutoLayout("LR")
+                  }}
+                  className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs text-text-secondary hover:bg-bg-elevated hover:text-text-primary transition-colors text-left"
+                >
+                  <ArrowRight className="h-3.5 w-3.5 text-accent-primary" />
+                  <span>Left to Right (LR)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLayoutMenuOpen(false)
+                    onAutoLayout("TB")
+                  }}
+                  className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs text-text-secondary hover:bg-bg-elevated hover:text-text-primary transition-colors text-left"
+                >
+                  <ArrowDown className="h-3.5 w-3.5 text-accent-ai-text" />
+                  <span>Top to Bottom (TB)</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       {onToggleSimulate && (
         <>

@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState, useMemo } from "react"
-import { useMyPresence, useUndo, useRedo, useCanUndo, useCanRedo } from "@liveblocks/react"
+import { useMyPresence, useUndo, useRedo, useCanUndo, useCanRedo, useMutation } from "@liveblocks/react"
 import {
   ReactFlow,
   Background,
@@ -16,7 +16,7 @@ import "@xyflow/react/dist/style.css"
 import { useReactFlow } from "@xyflow/react"
 import type { Connection } from "@xyflow/react"
 import { useLiveblocksFlow } from "@liveblocks/react-flow"
-import type { CanvasNode, CanvasEdge, NodeShape } from "@/types/canvas"
+import type { CanvasNode, CanvasEdge, NodeShape, NodeMetadata } from "@/types/canvas"
 import { NODE_COLORS, BOUNDARY_PRESETS } from "@/types/canvas"
 import { CanvasNodeComponent } from "@/components/editor/canvas/canvas-node"
 import { GroupNodeComponent } from "@/components/editor/canvas/group-node"
@@ -25,6 +25,8 @@ import { ShapePanel } from "@/components/editor/canvas/shape-panel"
 import { CanvasControls } from "@/components/editor/canvas/canvas-controls"
 import { PresenceCursors } from "@/components/editor/canvas/presence-cursors"
 import { CollaboratorAvatars } from "@/components/editor/canvas/collaborator-avatars"
+import { NodeMetadataDrawer } from "@/components/editor/canvas/node-metadata-drawer"
+import { computeAutoLayout, type LayoutDirection } from "@/lib/auto-layout"
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts"
 import type { CanvasTemplate } from "@/components/editor/starter-templates"
 import { useCanvasAutosave, type SaveStatus } from "@/hooks/use-canvas-autosave"
@@ -261,6 +263,60 @@ export function CanvasEditor({ projectId, pendingTemplate, onTemplateImported, o
 
   const [isSimulating, setIsSimulating] = useState(false)
   const [simulationSpeed, setSimulationSpeed] = useState<number>(1)
+  const [metadataDrawerOpen, setMetadataDrawerOpen] = useState(false)
+  const [activeMetadataNodeId, setActiveMetadataNodeId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const customEvent = e as CustomEvent<{ id: string }>
+      if (customEvent.detail?.id) {
+        setActiveMetadataNodeId(customEvent.detail.id)
+        setMetadataDrawerOpen(true)
+      }
+    }
+    window.addEventListener("open-node-metadata", handler)
+    return () => window.removeEventListener("open-node-metadata", handler)
+  }, [])
+
+  const applyAutoLayoutMutation = useMutation(
+    ({ storage }, newPositions: Array<{ id: string; position: { x: number; y: number } }>) => {
+      const nodesMap = storage.get("flow").get("nodes")
+      for (const item of newPositions) {
+        const node = nodesMap.get(item.id)
+        if (node) {
+          node.set("position", item.position)
+        }
+      }
+    },
+    []
+  )
+
+  const handleAutoLayout = useCallback(
+    (direction: LayoutDirection) => {
+      const laidOutNodes = computeAutoLayout(nodes, edges, { direction })
+      const newPositions = laidOutNodes.map((n) => ({ id: n.id, position: n.position }))
+      applyAutoLayoutMutation(newPositions)
+      setTimeout(() => fitView({ duration: 400 }), 50)
+    },
+    [nodes, edges, applyAutoLayoutMutation, fitView]
+  )
+
+  const saveNodeMetadataMutation = useMutation(
+    ({ storage }, nodeId: string, meta: NodeMetadata) => {
+      const node = storage.get("flow").get("nodes").get(nodeId)
+      if (!node) return
+      const liveData = (node as unknown as { get: (k: string) => { set: (k: string, v: unknown) => void } }).get("data")
+      liveData.set("metadata", meta)
+    },
+    []
+  )
+
+  const activeNode = nodes.find((n) => n.id === activeMetadataNodeId)
+  const activeNodeLabel =
+    activeNode?.type === "groupNode"
+      ? (activeNode.data as { label?: string }).label ?? ""
+      : (activeNode?.data as { label?: string })?.label ?? ""
+  const activeNodeMetadata = (activeNode?.data as { metadata?: NodeMetadata })?.metadata
 
   const toggleSimulate = useCallback(() => {
     setIsSimulating((prev) => !prev)
@@ -323,10 +379,23 @@ export function CanvasEditor({ projectId, pendingTemplate, onTemplateImported, o
         onToggleSimulate={toggleSimulate}
         simulationSpeed={simulationSpeed}
         onCycleSpeed={cycleSpeed}
+        onAutoLayout={handleAutoLayout}
       />
       <ShapePanel />
       <PresenceCursors />
       <CollaboratorAvatars />
+      <NodeMetadataDrawer
+        open={metadataDrawerOpen && Boolean(activeMetadataNodeId)}
+        onClose={() => setMetadataDrawerOpen(false)}
+        nodeId={activeMetadataNodeId}
+        nodeLabel={activeNodeLabel}
+        metadata={activeNodeMetadata}
+        onSave={(meta) => {
+          if (activeMetadataNodeId) {
+            saveNodeMetadataMutation(activeMetadataNodeId, meta)
+          }
+        }}
+      />
       <SaveStatusIndicator status={saveStatus} />
     </div>
   )

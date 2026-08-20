@@ -109,12 +109,35 @@ export const BOUNDARY_PRESETS: Record<GroupBoundaryType, BoundaryPreset> = {
   },
 }
 
+export interface NodeEnvVar {
+  key: string
+  value: string
+}
+
+export interface NodeMetadata {
+  description?: string
+  role?: string
+  techStack?: string
+  language?: string
+  port?: string
+  protocol?: string
+  healthCheckPath?: string
+  envVars?: NodeEnvVar[]
+  slaLatency?: string
+  maxThroughput?: string
+  replicas?: string
+  ownerTeam?: string
+  maintainer?: string
+  repoUrl?: string
+}
+
 export interface CanvasNodeData extends Record<string, unknown> {
   label: string
   color?: string
   textColor?: string
   shape?: NodeShape
   icon?: string
+  metadata?: NodeMetadata
 }
 
 export interface GroupNodeData extends Record<string, unknown> {

@@ -5,7 +5,7 @@ import { Handle, Position, NodeResizer, NodeToolbar } from "@xyflow/react"
 import type { NodeProps } from "@xyflow/react"
 import { useMutation } from "@liveblocks/react"
 import { LiveObject } from "@liveblocks/client"
-import { Sparkles } from "lucide-react"
+import { Sparkles, SlidersHorizontal } from "lucide-react"
 import type { CanvasRegularNode, NodeShape } from "@/types/canvas"
 import { NODE_COLORS } from "@/types/canvas"
 import { TechIcon } from "@/components/editor/canvas/tech-icons"
@@ -249,8 +249,31 @@ export function CanvasNodeComponent({ id, data, selected }: NodeProps<CanvasRegu
             )}
             <span>{data.icon ? "Icon" : "Add Icon"}</span>
           </button>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              window.dispatchEvent(new CustomEvent("open-node-metadata", { detail: { id } }))
+            }}
+            className="nodrag nopan flex items-center gap-1 rounded-full bg-bg-elevated px-2 py-1 text-[10px] font-medium text-text-secondary hover:text-text-primary hover:bg-bg-subtle transition-colors"
+            title="Component Metadata & SLA"
+          >
+            <SlidersHorizontal className="h-3 w-3 text-accent-primary" />
+            <span>Config</span>
+          </button>
         </div>
       </NodeToolbar>
+
+      {/* Port Badge */}
+      {data.metadata?.port && (
+        <div
+          className="pointer-events-none absolute -top-2 -right-2 z-20 flex items-center rounded-full bg-bg-surface px-1.5 py-0.5 text-[9px] font-mono font-bold text-accent-primary border border-accent-primary/50 shadow-md backdrop-blur-md"
+          title={`Port: ${data.metadata.port}`}
+        >
+          :{data.metadata.port}
+        </div>
+      )}
 
       <IconPickerDialog
         open={iconPickerOpen}
