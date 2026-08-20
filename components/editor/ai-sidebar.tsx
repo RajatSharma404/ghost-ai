@@ -396,21 +396,32 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
       const res = await fetch("/api/ai/iac", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roomId, format: iacFormat, chatHistory, nodes, edges }),
+        body: JSON.stringify({ roomId, format: iacFormat, chatHistory, nodes, edges, direct: true }),
       })
       if (!res.ok) throw new Error("IaC generation failed")
-      const { runId: newIacRunId } = (await res.json()) as { runId: string }
+      const data = (await res.json()) as { result?: IaCResult; runId?: string }
 
-      const tokenRes = await fetch("/api/ai/iac/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ runId: newIacRunId }),
-      })
-      if (!tokenRes.ok) throw new Error("Token request failed")
-      const { token } = (await tokenRes.json()) as { token: string }
+      if (data.result) {
+        setIacResult(data.result)
+        setIsIacGenerating(false)
+        setIacModalOpen(true)
+        return
+      }
 
-      setIacRunId(newIacRunId)
-      setIacPublicToken(token)
+      if (data.runId) {
+        const tokenRes = await fetch("/api/ai/iac/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ runId: data.runId }),
+        })
+        if (!tokenRes.ok) throw new Error("Token request failed")
+        const { token } = (await tokenRes.json()) as { token: string }
+
+        setIacRunId(data.runId)
+        setIacPublicToken(token)
+      } else {
+        setIsIacGenerating(false)
+      }
     } catch {
       setIsIacGenerating(false)
     }
@@ -612,21 +623,31 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
       const res = await fetch("/api/ai/alternatives", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roomId, chatHistory, nodes, edges }),
+        body: JSON.stringify({ roomId, chatHistory, nodes, edges, direct: true }),
       })
       if (!res.ok) throw new Error("Alternatives request failed")
-      const { runId: newAltRunId } = (await res.json()) as { runId: string }
+      const data = (await res.json()) as { report?: AlternativesReport; runId?: string }
 
-      const tokenRes = await fetch("/api/ai/alternatives/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ runId: newAltRunId }),
-      })
-      if (!tokenRes.ok) throw new Error("Token request failed")
-      const { token } = (await tokenRes.json()) as { token: string }
+      if (data.report) {
+        setAlternativesReport(data.report)
+        setIsAlternativesGenerating(false)
+        return
+      }
 
-      setAlternativesRunId(newAltRunId)
-      setAlternativesPublicToken(token)
+      if (data.runId) {
+        const tokenRes = await fetch("/api/ai/alternatives/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ runId: data.runId }),
+        })
+        if (!tokenRes.ok) throw new Error("Token request failed")
+        const { token } = (await tokenRes.json()) as { token: string }
+
+        setAlternativesRunId(data.runId)
+        setAlternativesPublicToken(token)
+      } else {
+        setIsAlternativesGenerating(false)
+      }
     } catch {
       setIsAlternativesGenerating(false)
     }
@@ -1854,8 +1875,8 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
                 </div>
 
                 {/* Findings List */}
-                <ScrollArea className="flex-1">
-                  <div className="flex flex-col gap-2.5 pr-1">
+                <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                  <div className="flex flex-col gap-2.5">
                     {auditReport.findings
                       .filter(
                         (f) => auditCategory === "all" || f.category === auditCategory
@@ -1901,10 +1922,10 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
                               <span className="text-[10px] text-text-faint">Affected:</span>
                               {finding.affectedNodes.map((nodeId) => (
                                 <span
-                                  key={nodeId}
-                                  className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono text-[9px] text-accent-ai-text"
+                                   key={nodeId}
+                                   className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono text-[9px] text-accent-ai-text"
                                 >
-                                  {nodeId}
+                                   {nodeId}
                                 </span>
                               ))}
                             </div>
@@ -1939,7 +1960,7 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
                       </div>
                     )}
                   </div>
-                </ScrollArea>
+                </div>
               </div>
             ) : (
               <div className="flex flex-1 flex-col items-center justify-center gap-4 py-8 text-center">
@@ -2125,8 +2146,8 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
                 </div>
 
                 {/* Itemized Services Breakdown */}
-                <ScrollArea className="flex-1">
-                  <div className="flex flex-col gap-2 pr-1">
+                <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                  <div className="flex flex-col gap-2">
                     <p className="text-[11px] font-semibold text-text-primary px-0.5">
                       Itemized Infrastructure Costs
                     </p>
@@ -2181,7 +2202,7 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
                       </div>
                     )}
                   </div>
-                </ScrollArea>
+                </div>
               </div>
             ) : (
               <div className="flex flex-1 flex-col items-center justify-center gap-4 py-8 text-center">
@@ -2263,8 +2284,8 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
                   </Button>
                 </div>
 
-                <ScrollArea className="flex-1">
-                  <div className="flex flex-col gap-3 pr-1">
+                <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                  <div className="flex flex-col gap-3">
                     {alternativesReport.alternatives.map((alt) => (
                       <div
                         key={alt.id}
@@ -2384,7 +2405,7 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
                       </div>
                     ))}
                   </div>
-                </ScrollArea>
+                </div>
               </div>
             ) : (
               <div className="flex flex-1 flex-col items-center justify-center gap-4 py-8 text-center">

@@ -147,15 +147,54 @@ function cleanCodeOutput(rawText: string): string {
   return cleaned.trim()
 }
 
+export async function runIaCDirect(payload: {
+  nodes: Node[]
+  edges: Edge[]
+  chatHistory: ChatMessage[]
+  format: "docker-compose" | "terraform" | "kubernetes"
+  projectId?: string
+  roomId?: string
+}): Promise<{ code: string; format: string; filename: string }> {
+  const apiKey =
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY ??
+    process.env.GOOGLE_AI_API_KEY ??
+    process.env.GEMINI_API_KEY
+
+  const google = createGoogleGenerativeAI({
+    apiKey,
+  })
+
+  const context = buildTopologyContext(
+    payload.nodes,
+    payload.edges,
+    payload.chatHistory,
+    payload.format
+  )
+
+  const systemPrompt = SYSTEM_PROMPTS[payload.format] ?? SYSTEM_PROMPTS["docker-compose"]
+  const modelName = process.env.GEMINI_SPEC_MODEL || process.env.GEMINI_MODEL || "gemini-2.5-flash"
+
+  const result = await generateText({
+    model: google(modelName),
+    system: systemPrompt,
+    prompt: context,
+  })
+
+  const code = cleanCodeOutput(result.text)
+  const filename = FILENAMES[payload.format] ?? "infrastructure.yaml"
+
+  return {
+    code,
+    format: payload.format,
+    filename,
+  }
+}
+
 export const generateIaC = schemaTask({
   id: "generate-iac",
   schema: payloadSchema,
   retry: { maxAttempts: 2, minTimeoutInMs: 1000, maxTimeoutInMs: 10000, factor: 2 },
   run: async (payload) => {
-    const google = createGoogleGenerativeAI({
-      apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GOOGLE_AI_API_KEY,
-    })
-
     metadata.set("status", "starting")
     metadata.set("format", payload.format)
     logger.info("Generating IaC", {
@@ -166,40 +205,18 @@ export const generateIaC = schemaTask({
     })
 
     metadata.set("status", "generating")
-
-    const context = buildTopologyContext(
-      payload.nodes,
-      payload.edges,
-      payload.chatHistory,
-      payload.format
-    )
-
-    const systemPrompt = SYSTEM_PROMPTS[payload.format] ?? SYSTEM_PROMPTS["docker-compose"]
-    const modelName = process.env.GEMINI_SPEC_MODEL || process.env.GEMINI_MODEL || "gemini-2.5-flash"
-
-    const result = await generateText({
-      model: google(modelName),
-      system: systemPrompt,
-      prompt: context,
-    })
-
-    const code = cleanCodeOutput(result.text)
-    const filename = FILENAMES[payload.format] ?? "infrastructure.yaml"
+    const result = await runIaCDirect(payload)
 
     metadata.set("status", "complete")
-    metadata.set("codeLength", code.length)
-    metadata.set("filename", filename)
+    metadata.set("codeLength", result.code.length)
+    metadata.set("filename", result.filename)
 
     logger.info("IaC generated successfully", {
       format: payload.format,
-      filename,
-      length: code.length,
+      filename: result.filename,
+      length: result.code.length,
     })
 
-    return {
-      code,
-      format: payload.format,
-      filename,
-    }
+    return result
   },
 })

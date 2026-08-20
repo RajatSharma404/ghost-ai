@@ -301,15 +301,39 @@ function parseAlternativesJson(rawText: string): AlternativesReport {
   }
 }
 
+export async function runAlternativesDirect(payload: {
+  nodes: Node[]
+  edges: Edge[]
+  chatHistory: ChatMessage[]
+  projectId?: string
+  roomId?: string
+}): Promise<AlternativesReport> {
+  const apiKey =
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY ??
+    process.env.GOOGLE_AI_API_KEY ??
+    process.env.GEMINI_API_KEY
+
+  const google = createGoogleGenerativeAI({
+    apiKey,
+  })
+
+  const context = buildTopologyContext(payload.nodes, payload.edges, payload.chatHistory)
+  const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash"
+
+  const result = await generateText({
+    model: google(modelName),
+    system: SYSTEM_PROMPT,
+    prompt: context,
+  })
+
+  return parseAlternativesJson(result.text)
+}
+
 export const suggestAlternatives = schemaTask({
   id: "suggest-alternatives",
   schema: payloadSchema,
   retry: { maxAttempts: 2, minTimeoutInMs: 1000, maxTimeoutInMs: 10000, factor: 2 },
   run: async (payload) => {
-    const google = createGoogleGenerativeAI({
-      apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GOOGLE_AI_API_KEY,
-    })
-
     metadata.set("status", "starting")
     logger.info("Generating architecture alternatives", {
       projectId: payload.projectId,
@@ -318,17 +342,7 @@ export const suggestAlternatives = schemaTask({
     })
 
     metadata.set("status", "generating")
-
-    const context = buildTopologyContext(payload.nodes, payload.edges, payload.chatHistory)
-    const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash"
-
-    const result = await generateText({
-      model: google(modelName),
-      system: SYSTEM_PROMPT,
-      prompt: context,
-    })
-
-    const report = parseAlternativesJson(result.text)
+    const report = await runAlternativesDirect(payload)
 
     metadata.set("status", "complete")
     metadata.set("alternativesCount", report.alternatives.length)
