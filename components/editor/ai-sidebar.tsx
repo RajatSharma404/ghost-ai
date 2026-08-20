@@ -78,7 +78,7 @@ function RunTracker({ runId, publicToken, onTerminal }: RunTrackerProps) {
     if (!(TERMINAL_STATUSES as readonly string[]).includes(run.status)) return
     firedRef.current = true
     onTerminal(run.status, run.output)
-  }, [run?.status, run?.id, onTerminal])
+  }, [run, onTerminal])
 
   return null
 }
@@ -110,8 +110,8 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
   const [chatError, setChatError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const chatTextareaRef = useRef<HTMLTextAreaElement>(null)
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const chatScrollRef = useRef<HTMLDivElement>(null)
+  const architectEndRef = useRef<HTMLDivElement>(null)
+  const chatEndRef = useRef<HTMLDivElement>(null)
 
   // Spec state
   const [specs, setSpecs] = useState<SpecItem[]>([])
@@ -149,20 +149,42 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const fetchSpecs = useCallback(() => {
+  const fetchSpecs = useCallback(async () => {
     setSpecsLoading(true)
-    fetch(`/api/projects/${projectId}/specs`)
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data: unknown) => setSpecs(Array.isArray(data) ? (data as SpecItem[]) : []))
-      .catch(() => setSpecs([]))
-      .finally(() => setSpecsLoading(false))
+    try {
+      const res = await fetch(`/api/projects/${projectId}/specs`)
+      const data = res.ok ? ((await res.json()) as SpecItem[]) : []
+      setSpecs(Array.isArray(data) ? data : [])
+    } catch {
+      setSpecs([])
+    } finally {
+      setSpecsLoading(false)
+    }
   }, [projectId])
 
   // Fetch specs when sidebar opens
   useEffect(() => {
     if (!isOpen) return
-    fetchSpecs()
-  }, [isOpen, fetchSpecs])
+    let isCancelled = false
+
+    async function load() {
+      try {
+        const res = await fetch(`/api/projects/${projectId}/specs`)
+        const data = res.ok ? ((await res.json()) as SpecItem[]) : []
+        if (!isCancelled) {
+          setSpecs(Array.isArray(data) ? data : [])
+        }
+      } catch {
+        if (!isCancelled) setSpecs([])
+      }
+    }
+
+    void load()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [isOpen, projectId])
 
   const handleSpecRunTerminal = useCallback(
     (status: string) => {
@@ -264,12 +286,8 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
 
   // Scroll both tabs to bottom when messages update
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
-    if (chatScrollRef.current) {
-      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight
-    }
+    architectEndRef.current?.scrollIntoView({ behavior: "smooth" })
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [validatedChatMessages.length])
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -580,7 +598,7 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
         {/* AI Architect Tab */}
         <TabsContent value="architect" className="min-h-0 flex-1 overflow-hidden">
           <div className="flex h-full flex-col">
-            <ScrollArea className="flex-1" ref={scrollRef as React.Ref<HTMLDivElement>}>
+            <ScrollArea className="flex-1">
               <div className="px-4 pt-3 pb-2">
                 {validatedChatMessages.length === 0 ? (
                   <div className="flex flex-col items-center gap-5 py-8 text-center">
@@ -630,6 +648,7 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
                         </div>
                       )
                     )}
+                    <div ref={architectEndRef} />
                   </div>
                 )}
               </div>
@@ -685,7 +704,7 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
         {/* Chat Tab */}
         <TabsContent value="chat" className="min-h-0 flex-1 overflow-hidden">
           <div className="flex h-full flex-col">
-            <ScrollArea className="flex-1" ref={chatScrollRef as React.Ref<HTMLDivElement>}>
+            <ScrollArea className="flex-1">
               <div className="px-4 pt-3 pb-2">
                 {validatedChatMessages.length === 0 ? (
                   <div className="flex flex-col items-center gap-4 py-8 text-center">
@@ -740,6 +759,7 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
                         </div>
                       )
                     })}
+                    <div ref={chatEndRef} />
                   </div>
                 )}
               </div>

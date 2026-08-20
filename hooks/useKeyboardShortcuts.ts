@@ -36,19 +36,21 @@ export function useKeyboardShortcuts({ reactFlow, undo, redo }: Options) {
         return
       }
 
-      if (meta && event.shiftKey && event.key === "z") {
+      const keyLower = event.key.toLowerCase()
+
+      if (meta && event.shiftKey && keyLower === "z") {
         event.preventDefault()
         redo()
         return
       }
 
-      if (meta && !event.shiftKey && event.key === "z") {
+      if (meta && !event.shiftKey && keyLower === "z") {
         event.preventDefault()
         undo()
         return
       }
 
-      if (meta && event.key === "y") {
+      if (meta && keyLower === "y") {
         event.preventDefault()
         redo()
       }

@@ -1,37 +1,28 @@
 "use client"
 
-import { useRef } from "react"
 import { useOthers } from "@liveblocks/react"
-import { useReactFlow, useViewport } from "@xyflow/react"
+import { useViewport } from "@xyflow/react"
 import { Loader2 } from "lucide-react"
 
 export function PresenceCursors() {
-  const containerRef = useRef<HTMLDivElement>(null)
   const others = useOthers()
-  const { flowToScreenPosition } = useReactFlow()
-  // Subscribe to viewport so cursors reposition on pan/zoom
-  useViewport()
+  const { x: vpX, y: vpY, zoom } = useViewport()
 
   return (
-    <div
-      ref={containerRef}
-      className="pointer-events-none absolute inset-0 overflow-hidden"
-    >
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
       {others.map((other) => {
         const cursor = other.presence.cursor
-        if (!cursor || !containerRef.current) return null
+        if (!cursor) return null
 
-        const rect = containerRef.current.getBoundingClientRect()
-        const screen = flowToScreenPosition(cursor)
-        const x = screen.x - rect.left
-        const y = screen.y - rect.top
+        const x = cursor.x * zoom + vpX
+        const y = cursor.y * zoom + vpY
         const color = other.info?.color ?? "#888888"
         const name = other.info?.name ?? "Anonymous"
 
         return (
           <div
             key={other.connectionId}
-            className="absolute z-50"
+            className="absolute z-50 transition-[left,top] duration-75 ease-out"
             style={{ left: x, top: y }}
           >
             <svg
@@ -50,7 +41,7 @@ export function PresenceCursors() {
               />
             </svg>
             <div
-              className="mt-0.5 flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-white"
+              className="mt-0.5 flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-white shadow-sm"
               style={{ background: color, whiteSpace: "nowrap" }}
             >
               {other.presence.thinking && (
@@ -64,3 +55,4 @@ export function PresenceCursors() {
     </div>
   )
 }
+
