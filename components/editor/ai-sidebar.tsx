@@ -1216,7 +1216,7 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
 
     <aside
       className={cn(
-        "fixed inset-y-3 right-3 top-15 z-40 hidden w-84 flex-col rounded-3xl border border-border-subtle bg-bg-surface/95 backdrop-blur-xl transition-transform duration-200 md:flex",
+        "fixed inset-y-3 right-3 top-15 z-40 hidden w-96 md:w-[440px] flex-col rounded-3xl border border-border-subtle bg-bg-surface/95 backdrop-blur-xl transition-transform duration-200 md:flex shadow-2xl",
         isOpen ? "translate-x-0" : "translate-x-[calc(100%+1rem)]"
       )}
     >
@@ -1245,56 +1245,73 @@ export function AiSidebar({ isOpen, onClose, roomId, projectId }: AiSidebarProps
 
       {/* Tabs */}
       <Tabs defaultValue="architect" className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <TabsList className="mx-4 mt-3 flex h-auto shrink-0 overflow-x-auto rounded-xl bg-bg-subtle p-1 scrollbar-none gap-1">
-          <TabsTrigger
-            value="architect"
-            className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
+        <div className="relative mx-4 mt-3 shrink-0">
+          <TabsList
+            onWheel={(e) => {
+              if (e.deltaY !== 0) {
+                e.currentTarget.scrollLeft += e.deltaY * 0.8
+              }
+            }}
+            className="flex h-auto w-full shrink-0 overflow-x-auto rounded-xl bg-bg-subtle p-1 scroll-smooth gap-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
-            Architect
-          </TabsTrigger>
-          <TabsTrigger
-            value="chat"
-            className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
-          >
-            Chat
-          </TabsTrigger>
-          <TabsTrigger
-            value="specs"
-            className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
-          >
-            Specs
-          </TabsTrigger>
-          <TabsTrigger
-            value="iac"
-            className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
-          >
-            IaC
-          </TabsTrigger>
-          <TabsTrigger
-            value="audit"
-            className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
-          >
-            Audit
-          </TabsTrigger>
-          <TabsTrigger
-            value="cost"
-            className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
-          >
-            Cost
-          </TabsTrigger>
-          <TabsTrigger
-            value="alternatives"
-            className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
-          >
-            Diff
-          </TabsTrigger>
-          <TabsTrigger
-            value="api"
-            className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
-          >
-            API
-          </TabsTrigger>
-        </TabsList>
+            <TabsTrigger
+              value="architect"
+              className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
+            >
+              <Bot className="h-3.5 w-3.5 mr-1 text-accent-ai-text group-data-active:text-white" />
+              <span>Architect</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="chat"
+              className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
+            >
+              <MessageSquare className="h-3.5 w-3.5 mr-1" />
+              <span>Chat</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="specs"
+              className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
+            >
+              <FileText className="h-3.5 w-3.5 mr-1" />
+              <span>Specs</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="iac"
+              className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
+            >
+              <Code2 className="h-3.5 w-3.5 mr-1" />
+              <span>IaC</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="audit"
+              className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
+            >
+              <ShieldAlert className="h-3.5 w-3.5 mr-1" />
+              <span>Audit</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="cost"
+              className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
+            >
+              <DollarSign className="h-3.5 w-3.5 mr-1" />
+              <span>Cost</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="alternatives"
+              className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
+            >
+              <GitFork className="h-3.5 w-3.5 mr-1" />
+              <span>Diff</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="api"
+              className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium data-active:bg-accent-ai data-active:text-white data-active:shadow-none"
+            >
+              <Terminal className="h-3.5 w-3.5 mr-1" />
+              <span>API</span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* AI Architect Tab */}
         <TabsContent value="architect" className="min-h-0 flex-1 overflow-hidden">
