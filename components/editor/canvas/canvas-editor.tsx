@@ -24,6 +24,7 @@ import { GroupNodeComponent } from "@/components/editor/canvas/group-node"
 import { CanvasEdgeComponent } from "@/components/editor/canvas/canvas-edge"
 import { ShapePanel } from "@/components/editor/canvas/shape-panel"
 import { CanvasControls, type GridVariantType } from "@/components/editor/canvas/canvas-controls"
+import { useCanvasDisplay } from "@/components/editor/canvas/canvas-display-context"
 import { PresenceCursors } from "@/components/editor/canvas/presence-cursors"
 import { CollaboratorAvatars } from "@/components/editor/canvas/collaborator-avatars"
 import { NodeMetadataDrawer } from "@/components/editor/canvas/node-metadata-drawer"
@@ -74,6 +75,8 @@ export function CanvasEditor({ projectId, pendingTemplate, onTemplateImported, o
   const reactFlow = useReactFlow()
   const { screenToFlowPosition, zoomIn, zoomOut, fitView } = reactFlow
   const wrapperRef = useRef<HTMLDivElement>(null)
+
+  const { showCostBadges, toggleCostBadges } = useCanvasDisplay()
 
   // Keep stable refs to the latest nodes/edges so the import effect
   // can read current state without being in its dependency array.
@@ -446,6 +449,8 @@ export function CanvasEditor({ projectId, pendingTemplate, onTemplateImported, o
         onChangeGridVariant={setGridVariant}
         snapToGrid={snapToGrid}
         onToggleSnapToGrid={() => setSnapToGrid((prev) => !prev)}
+        showCostBadges={showCostBadges}
+        onToggleCostBadges={toggleCostBadges}
       />
       {showMinimap && (
         <MiniMap
