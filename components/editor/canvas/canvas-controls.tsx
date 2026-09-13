@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import {
   Minus,
   Maximize,
@@ -15,6 +15,7 @@ import {
   Map,
   Grid,
   Check,
+  DollarSign,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { LayoutDirection } from "@/lib/auto-layout"
@@ -42,6 +43,8 @@ interface CanvasControlsProps {
   onChangeGridVariant?: (variant: GridVariantType) => void
   snapToGrid?: boolean
   onToggleSnapToGrid?: () => void
+  showCostBadges?: boolean
+  onToggleCostBadges?: () => void
 }
 
 export function CanvasControls({
@@ -65,9 +68,44 @@ export function CanvasControls({
   onChangeGridVariant,
   snapToGrid = false,
   onToggleSnapToGrid,
+  showCostBadges = true,
+  onToggleCostBadges,
 }: CanvasControlsProps) {
   const [layoutMenuOpen, setLayoutMenuOpen] = useState(false)
   const [gridMenuOpen, setGridMenuOpen] = useState(false)
+  const gridMenuRef = useRef<HTMLDivElement>(null)
+  const layoutMenuRef = useRef<HTMLDivElement>(null)
+
+  // Dismiss custom popovers on Escape or click outside
+  useEffect(() => {
+    if (!gridMenuOpen && !layoutMenuOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setGridMenuOpen(false)
+        setLayoutMenuOpen(false)
+      }
+    }
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        gridMenuRef.current &&
+        !gridMenuRef.current.contains(e.target as Node)
+      ) {
+        setGridMenuOpen(false)
+      }
+      if (
+        layoutMenuRef.current &&
+        !layoutMenuRef.current.contains(e.target as Node)
+      ) {
+        setLayoutMenuOpen(false)
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    window.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+      window.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [gridMenuOpen, layoutMenuOpen])
 
   return (
     <div className="absolute bottom-4 left-4 z-10 flex items-center gap-0.5 rounded-full border border-border-default bg-bg-surface/95 px-2 py-1.5 shadow-xl backdrop-blur-xl">
@@ -95,7 +133,15 @@ export function CanvasControls({
         <>
           <div className="mx-1 h-4 w-px bg-border-default" />
 
-          <div className="relative">
+          <div
+            ref={gridMenuRef}
+            className="relative"
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setGridMenuOpen(false)
+              }
+            }}
+          >
             <button
               type="button"
               onClick={() => setGridMenuOpen((prev) => !prev)}
@@ -172,7 +218,15 @@ export function CanvasControls({
         <>
           <div className="mx-1 h-4 w-px bg-border-default" />
 
-          <div className="relative">
+          <div
+            ref={layoutMenuRef}
+            className="relative"
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setLayoutMenuOpen(false)
+              }
+            }}
+          >
             <button
               type="button"
               onClick={() => setLayoutMenuOpen((prev) => !prev)}
@@ -242,6 +296,28 @@ export function CanvasControls({
           >
             <Map className="h-3.5 w-3.5" />
             <span>Map</span>
+          </button>
+        </>
+      )}
+
+      {/* Cost Badges Toggle */}
+      {onToggleCostBadges && (
+        <>
+          <div className="mx-1 h-4 w-px bg-border-default" />
+
+          <button
+            type="button"
+            onClick={onToggleCostBadges}
+            title={showCostBadges ? "Hide Monthly Cost Badges ($)" : "Show Monthly Cost Badges ($)"}
+            className={cn(
+              "flex h-7 items-center gap-1 rounded-full px-2.5 text-xs font-medium transition-all",
+              showCostBadges
+                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-xs shadow-emerald-500/20"
+                : "text-text-muted hover:bg-bg-elevated hover:text-text-primary"
+            )}
+          >
+            <DollarSign className="h-3.5 w-3.5" />
+            <span>Cost</span>
           </button>
         </>
       )}
