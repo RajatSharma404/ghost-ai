@@ -74,7 +74,7 @@ export default async function SharePage({ params }: SharePageProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          <Link href={`/project/${project.id}`}>
+          <Link href={`/editor/${project.id}`}>
             <Button size="sm" className="h-8 gap-1.5 bg-accent-ai text-xs text-white hover:bg-accent-ai/80">
               <span>Open in Studio</span>
               <ArrowUpRight className="h-3.5 w-3.5" />
