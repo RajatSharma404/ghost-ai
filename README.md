@@ -14,6 +14,8 @@
     <img src="https://img.shields.io/badge/-Google_Gemini_2.5_Flash-8E75B2?style=for-the-badge&logo=google&logoColor=white" />
     <img src="https://img.shields.io/badge/-Liveblocks_Multiplayer-050505?style=for-the-badge&logo=liveblocks&logoColor=white" />
     <img src="https://img.shields.io/badge/-Trigger.dev_v4-22c55e?style=for-the-badge&logo=triggerdotdev&logoColor=white" />
+    <img src="https://img.shields.io/badge/-GitHub_API_Octokit-181717?style=for-the-badge&logo=github&logoColor=white" />
+    <img src="https://img.shields.io/badge/-Web_Speech_API-E34F26?style=for-the-badge&logo=html5&logoColor=white" />
     <img src="https://img.shields.io/badge/-Clerk_Auth-6C47FF?style=for-the-badge&logo=clerk&logoColor=white" />
     <img src="https://img.shields.io/badge/-Prisma_ORM-2D3748?style=for-the-badge&logo=prisma&logoColor=white" />
     <img src="https://img.shields.io/badge/-PostgreSQL-336791?style=for-the-badge&logo=postgresql&logoColor=white" />
@@ -54,6 +56,9 @@
    - [18. Minimap, Grid Customization & Multi-Theme System](#18-minimap-grid-customization--multi-theme-system)
    - [19. Real-World Architecture Template Gallery](#19-real-world-architecture-template-gallery)
    - [20. Automatic AI Artifact Persistence & Fast Resumption](#20-automatic-ai-artifact-persistence--fast-resumption)
+   - [21. One-Click GitHub Export (Git Database API)](#21-one-click-github-export-git-database-api)
+   - [22. AI Prompt Voice-to-Architecture (Web Speech API)](#22-ai-prompt-voice-to-architecture-web-speech-api)
+   - [23. Live Cost Differential Badges & Replica Scaling](#23-live-cost-differential-badges--replica-scaling)
 4. ⚙️ [Tech Stack Architecture](#️-tech-stack-architecture)
 5. 🚀 [Quick Start & Installation](#-quick-start--installation)
 6. 🔑 [Environment Variables Setup Guide](#-environment-variables-setup-guide)
@@ -84,6 +89,9 @@ From there, Ghost AI bridges the gap between design and implementation by automa
 - 🐳 **Full-Stack IaC Suite**: 1-click generation of `docker-compose.yml`, Terraform AWS `main.tf`, and Kubernetes `k8s.yaml` with an IDE-grade code viewer, syntax highlighting, and fullscreen maximize mode.
 - 🛡️ **STRIDE Security & Reliability Audits**: 4-pillar architectural audits (Security, SPoFs, Scalability, Compliance) with health scores (0-100) and actionable remediation steps.
 - 💰 **FinOps Multi-Cloud Cost Modeling**: Monthly spend projections across AWS, GCP, and Azure calibrated to traffic tiers (Starter, Growth, Scale, Enterprise).
+- 🏷️ **Live Cost Differential Badges**: Instant cloud cost estimation badges rendered directly atop database and compute nodes on the canvas with replica scaling and a 1-click `$ Cost` toggle.
+- 🐙 **One-Click GitHub Export**: Commit generated Docker Compose, Terraform, and K8s manifests directly to any GitHub repository using atomic Git Database tree commits.
+- 🎙️ **Voice-to-Architecture Dictation**: Speak system architectures out loud via browser-native Web Speech API and watch Ghost AI graph them live onto the canvas.
 - 🔀 **Architecture Paradigm Morphing**: Compare Serverless vs. Event-Driven vs. Modular Monolith architectures with 1-click live canvas mutation.
 - 🌐 **Export & Embed Anywhere**: High-res PNG/SVG, Mermaid.js, PlantUML, public read-only URLs, and responsive iframe embeds for Notion and Confluence.
 
@@ -232,6 +240,37 @@ From there, Ghost AI bridges the gap between design and implementation by automa
 - **Local Cache & Storage Sync**: All generated specifications, IaC code files, audit reports, cost estimates, architecture diffs, and API scaffolds are automatically persisted per project in browser storage.
 - **Zero Re-Generation Friction**: Navigating between tabs, closing the sidebar, or refreshing the page preserves all previously generated files and insights with instant preview and download controls.
 
+### 21. One-Click GitHub Export (Git Database API)
+- **Direct Repository Publishing**: Commit generated `docker-compose.yml`, `main.tf`, and `k8s.yaml` manifests directly to your GitHub repository without leaving Ghost AI.
+- **Atomic Git Data Tree Commit**:
+  - Authenticated via GitHub Personal Access Token (PAT) with optional local browser caching (`ghost_ai_github_pat`).
+  - Creates Git Blobs for all selected manifests concurrently via `@octokit/rest`.
+  - Builds an atomic Git tree commit atop the target branch's latest commit SHA (`createTree` + `createCommit`).
+  - Updates the target branch ref (`updateRef`) or creates a new branch (`createRef`) if targeting a new release branch.
+- **Export Checklist & Commit History**:
+  - Granular multi-file selection checklist.
+  - Customizable commit messages with standard Conventional Commits defaults.
+  - Direct clickable GitHub commit URLs and branch links upon successful completion.
+
+### 22. AI Prompt Voice-to-Architecture (Web Speech API)
+- **Hands-Free Architecture Dictation**: Speak system architectures out loud directly into Ghost AI instead of typing lengthy architectural descriptions.
+- **Browser-Native Web Speech API**:
+  - Leverages continuous speech recognition with real-time transcript streaming.
+  - Non-destructive dictation preserves previously typed text and appends spoken phrases seamlessly.
+- **Live Soundwave Visual Feedback**:
+  - Animated pulsing indicator (`animate-ping`) showing live microphone recording status.
+  - Automatic textarea expansion (`72px` to `160px`) as speech streams in.
+  - Full keyboard shortcut support (press Enter to send, Shift+Enter for new line).
+
+### 23. Live Cost Differential Badges & Replica Scaling
+- **In-Canvas Monthly Cost Badges**: Glassmorphic cost tags rendered directly on nodes (e.g. `~$45/mo`, `~$56/mo (2x)`) atop database, compute, and messaging components.
+- **Real-World Cloud Pricing Intelligence**:
+  - **Databases**: RDS PostgreSQL (`~$45/mo`), MySQL (`~$42/mo`), MongoDB Atlas (`~$57/mo`), Redis Cache (`~$22/mo`), DynamoDB (`~$18/mo`), Supabase (`~$25/mo`), and ClickHouse (`~$85/mo`).
+  - **Compute & Containers**: ECS Docker (`~$28/mo`), EKS Kubernetes Worker (`~$72/mo`), AWS Lambda (`~$8/mo`), Node.js / FastAPI / Go microservices (`~$26–$32/mo`), Next.js SSR clusters (`~$20/mo`).
+  - **Messaging & Event Streams**: Apache Kafka / MSK (`~$110/mo`), RabbitMQ (`~$35/mo`).
+- **Dynamic Replica Sizing**: Configured replica counts in node metadata (`metadata.replicas`) automatically multiply compute instance costs in real time.
+- **1-Click Canvas Controls Toggle**: Dedicated `$ Cost` toggle in the bottom canvas controls toolbar to quickly show or hide all cost badges with persistent settings across sessions.
+
 ---
 
 ## ⚙️ Tech Stack Architecture
@@ -368,6 +407,8 @@ ghost-ai/
 │   │   │   ├── cost/                # Multi-cloud cost estimation endpoint
 │   │   │   ├── alternatives/        # Architecture paradigm diff endpoint
 │   │   │   └── scaffold/            # OpenAPI 3.0 & route scaffold endpoint
+│   │   ├── export/
+│   │   │   └── github/              # Git Database API multi-file atomic commit endpoint
 │   │   ├── liveblocks-auth/         # Issues authenticated Liveblocks room tokens
 │   │   └── projects/                # Projects, specs, snapshots & collaborator CRUD
 │   ├── editor/
@@ -379,14 +420,19 @@ ghost-ai/
 │   └── globals.css                  # Tailwind v4 theme variables & animations
 ├── components/
 │   ├── editor/
-│   │   ├── canvas/                  # Custom nodes, edges, grouping, icons, comments & drawers
-│   │   ├── ai-sidebar.tsx           # Full AI Workspace (8 tabs, IaC modal, spec preview)
+│   │   ├── canvas/                  # Custom nodes, edges, grouping, icons, comments, cost badges & drawers
+│   │   ├── ai/                      # Decomposed modular AI workspace tabs & GitHub export dialog
+│   │   ├── ai-sidebar.tsx           # AI Workspace sidebar shell & orchestrator
 │   │   ├── editor-navbar.tsx        # Top navbar with export, history, theme & share actions
 │   │   ├── project-sidebar.tsx      # Slide-out project management drawer
 │   │   └── starter-templates.ts     # Pre-built distributed architecture blueprints
 │   └── ui/                          # Accessible shadcn/ui components
+├── hooks/
+│   ├── use-voice-dictation.ts       # Web Speech API speech-to-text dictation hook
+│   └── use-canvas-autosave.ts       # Canvas autosave with debounce & keepalive flush
 ├── lib/
 │   ├── auto-layout.ts               # Hierarchical DAG auto-layout engine
+│   ├── canvas-cost-estimator.ts     # Real-world cloud pricing estimator & replica scaling
 │   ├── diagram-export.ts            # Mermaid, PlantUML & Image export utilities
 │   ├── liveblocks.ts                # Liveblocks Node client & user color mappings
 │   ├── prisma.ts                    # Global Prisma client singleton
