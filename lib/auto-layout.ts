@@ -12,7 +12,8 @@ interface LayoutOptions {
 
 /**
  * High-performance hierarchical DAG layout algorithm for architecture diagrams.
- * Arranges nodes into layered ranks based on directed dependency flow.
+ * Arranges nodes into layered ranks based on directed dependency flow,
+ * and re-encloses container group nodes around their member services.
  */
 export function computeAutoLayout(
   nodes: CanvasNode[],
@@ -33,6 +34,28 @@ export function computeAutoLayout(
   const groupNodes = nodes.filter((n) => n.type === "groupNode")
 
   if (regularNodes.length === 0) return nodes
+
+  // 1. Identify which regular nodes were originally enclosed inside each group
+  const originalGroupMembers = new Map<string, string[]>()
+  for (const g of groupNodes) {
+    const gx = g.position.x
+    const gy = g.position.y
+    const gw = g.width ?? 320
+    const gh = g.height ?? 220
+    const members: string[] = []
+
+    for (const r of regularNodes) {
+      if (
+        r.position.x >= gx &&
+        r.position.x <= gx + gw &&
+        r.position.y >= gy &&
+        r.position.y <= gy + gh
+      ) {
+        members.push(r.id)
+      }
+    }
+    originalGroupMembers.set(g.id, members)
+  }
 
   const nodeMap = new Map<string, CanvasNode>()
   const inDegree = new Map<string, number>()
@@ -132,8 +155,34 @@ export function computeAutoLayout(
     })
   })
 
-  // Position container group nodes cleanly around the graph
+  // 2. Re-encompass member nodes with appropriate boundary padding
   const updatedGroupNodes = groupNodes.map((gNode, gIdx) => {
+    const memberIds = originalGroupMembers.get(gNode.id) ?? []
+    const members = memberIds
+      .map((id) => updatedNodesMap.get(id))
+      .filter((n): n is CanvasNode => Boolean(n))
+
+    if (members.length > 0) {
+      const padX = 40
+      const padTop = 55
+      const padBottom = 40
+
+      const minX = Math.min(...members.map((m) => m.position.x))
+      const maxX = Math.max(...members.map((m) => m.position.x + (m.width ?? 160)))
+      const minY = Math.min(...members.map((m) => m.position.y))
+      const maxY = Math.max(...members.map((m) => m.position.y + (m.height ?? 80)))
+
+      return {
+        ...gNode,
+        position: {
+          x: Math.round(minX - padX),
+          y: Math.round(minY - padTop),
+        },
+        width: Math.max(260, Math.round(maxX - minX + padX * 2)),
+        height: Math.max(160, Math.round(maxY - minY + padTop + padBottom)),
+      }
+    }
+
     return {
       ...gNode,
       position: {
