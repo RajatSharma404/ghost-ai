@@ -6,6 +6,9 @@ const signUpUrl = process.env.NEXT_PUBLIC_CLERK_SIGN_UP_URL ?? "/sign-up"
 const isPublicRoute = createRouteMatcher([
   `${signInUrl}(.*)`,
   `${signUpUrl}(.*)`,
+  "/share/(.*)",
+  "/embed/(.*)",
+  "/api/projects/(.*)/public-canvas",
 ])
 
 export const proxy = clerkMiddleware(async (auth, request) => {
