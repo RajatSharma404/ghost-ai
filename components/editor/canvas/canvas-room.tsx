@@ -3,6 +3,7 @@
 import { ClientSideSuspense } from "@liveblocks/react"
 import { ReactFlowProvider } from "@xyflow/react"
 import { CanvasEditor } from "@/components/editor/canvas/canvas-editor"
+import { CanvasDisplayProvider } from "@/components/editor/canvas/canvas-display-context"
 import type { CanvasTemplate } from "@/components/editor/starter-templates"
 import type { SaveStatus } from "@/hooks/use-canvas-autosave"
 
@@ -19,13 +20,15 @@ export function CanvasRoom({ projectId, pendingTemplate, onTemplateImported, onS
     <div className="h-full w-full">
       <ClientSideSuspense fallback={<CanvasLoading />}>
         <ReactFlowProvider>
-          <CanvasEditor
-            projectId={projectId}
-            pendingTemplate={pendingTemplate}
-            onTemplateImported={onTemplateImported}
-            onSaveStatusChange={onSaveStatusChange}
-            onSaveReady={onSaveReady}
-          />
+          <CanvasDisplayProvider>
+            <CanvasEditor
+              projectId={projectId}
+              pendingTemplate={pendingTemplate}
+              onTemplateImported={onTemplateImported}
+              onSaveStatusChange={onSaveStatusChange}
+              onSaveReady={onSaveReady}
+            />
+          </CanvasDisplayProvider>
         </ReactFlowProvider>
       </ClientSideSuspense>
     </div>
