@@ -38,20 +38,36 @@ export function PinnedComments({
   const [newCommentText, setNewCommentText] = useState("")
   const [newThreadCoords, setNewThreadCoords] = useState<{ x: number; y: number } | null>(null)
 
-  // Read threads from Liveblocks storage
-  const threads = useStorage((root) => {
-    const rawThreads = (root as unknown as { threads?: Record<string, CommentThread> }).threads
+  // Read threads from Liveblocks storage (useStorage unwraps LiveObjects into immutable objects)
+  const threads: CommentThread[] = useStorage((root) => {
+    const rawThreads = root.threads
     if (!rawThreads) return []
-    return Object.values(rawThreads)
+    if (typeof (rawThreads as unknown as { values?: () => IterableIterator<CommentThread> }).values === "function") {
+      return Array.from((rawThreads as unknown as Map<string, CommentThread>).values())
+    }
+    return Object.values(rawThreads) as unknown as CommentThread[]
   }) ?? []
+
+  // Dismiss active thread or new thread composer on Escape
+  useEffect(() => {
+    if (!activeThreadId && !newThreadCoords) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setActiveThreadId(null)
+        setNewThreadCoords(null)
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [activeThreadId, newThreadCoords])
 
   // Mutation to create a new thread
   const createThreadMutation = useMutation(
     ({ storage }, thread: CommentThread) => {
-      let threadsMap = (storage as unknown as { get: (k: string) => LiveMap<string, LiveThreadObject> | undefined }).get("threads")
+      let threadsMap = storage.get("threads")
       if (!threadsMap) {
         const newMap = new LiveMap<string, LiveThreadObject>()
-        ;(storage as unknown as { set: (k: string, v: unknown) => void }).set("threads", newMap)
+        storage.set("threads", newMap)
         threadsMap = newMap
       }
 
@@ -63,7 +79,7 @@ export function PinnedComments({
   // Mutation to add reply
   const addReplyMutation = useMutation(
     ({ storage }, threadId: string, message: CommentMessage) => {
-      const threadsMap = (storage as unknown as { get: (k: string) => LiveMap<string, LiveThreadObject> | undefined }).get("threads")
+      const threadsMap = storage.get("threads")
       if (!threadsMap) return
       const thread = threadsMap.get(threadId)
       if (!thread) return
@@ -76,7 +92,7 @@ export function PinnedComments({
   // Mutation to toggle resolve
   const toggleResolveMutation = useMutation(
     ({ storage }, threadId: string, currentResolved: boolean) => {
-      const threadsMap = (storage as unknown as { get: (k: string) => LiveMap<string, LiveThreadObject> | undefined }).get("threads")
+      const threadsMap = storage.get("threads")
       if (!threadsMap) return
       const thread = threadsMap.get(threadId)
       if (!thread) return
@@ -88,7 +104,7 @@ export function PinnedComments({
   // Mutation to delete thread
   const deleteThreadMutation = useMutation(
     ({ storage }, threadId: string) => {
-      const threadsMap = (storage as unknown as { get: (k: string) => LiveMap<string, LiveThreadObject> | undefined }).get("threads")
+      const threadsMap = storage.get("threads")
       if (!threadsMap) return
       threadsMap.delete(threadId)
     },
