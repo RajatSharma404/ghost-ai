@@ -46,6 +46,7 @@ export function EditorWorkspaceClient({
         initialPresence={{ cursor: null, thinking: false }}
         initialStorage={new LiveObject({
           flow: new LiveObject({ nodes: new LiveMap(), edges: new LiveMap() }),
+          threads: new LiveMap(),
         })}
       >
         <div className="flex h-screen flex-col bg-bg-base">
