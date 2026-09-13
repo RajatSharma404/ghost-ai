@@ -5,6 +5,8 @@ import type { CanvasNode, CanvasEdge } from "@/types/canvas"
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error"
 
+const AUTOSAVE_DEBOUNCE_MS = 8000
+
 export function useCanvasAutosave(
   projectId: string,
   nodes: CanvasNode[],
@@ -14,6 +16,7 @@ export function useCanvasAutosave(
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasMountedRef = useRef(false)
+  const lastSavedSnapshotRef = useRef<string>("")
 
   const nodesRef = useRef(nodes)
   const edgesRef = useRef(edges)
@@ -28,41 +31,85 @@ export function useCanvasAutosave(
   // Reset to idle after showing saved/error so the button returns to "Save".
   useEffect(() => {
     if (status !== "saved" && status !== "error") return
-    resetTimerRef.current = setTimeout(() => setStatus("idle"), 2000)
+    resetTimerRef.current = setTimeout(() => setStatus("idle"), 2500)
     return () => {
       if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
     }
   }, [status])
 
   const doSave = useCallback(async () => {
+    const currentSnapshot = JSON.stringify({
+      nodes: nodesRef.current,
+      edges: edgesRef.current,
+    })
+
+    // Avoid redundant network calls if content is unchanged
+    if (currentSnapshot === lastSavedSnapshotRef.current) {
+      return
+    }
+
     setStatus("saving")
     try {
       const res = await fetch(`/api/projects/${projectIdRef.current}/canvas`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nodes: nodesRef.current, edges: edgesRef.current }),
+        body: currentSnapshot,
       })
-      setStatus(res.ok ? "saved" : "error")
+      if (res.ok) {
+        lastSavedSnapshotRef.current = currentSnapshot
+        setStatus("saved")
+      } else {
+        setStatus("error")
+      }
     } catch {
       setStatus("error")
     }
   }, [])
 
   useEffect(() => {
-    // Skip saving on the initial render before any user/collaboration changes.
+    // Record initial snapshot on first mount so we don't save unchanged initial storage
     if (!hasMountedRef.current) {
       hasMountedRef.current = true
+      lastSavedSnapshotRef.current = JSON.stringify({ nodes, edges })
+      return
+    }
+
+    const currentSnapshot = JSON.stringify({ nodes, edges })
+    if (currentSnapshot === lastSavedSnapshotRef.current) {
       return
     }
 
     if (timerRef.current) clearTimeout(timerRef.current)
-    timerRef.current = setTimeout(doSave, 2000)
+    timerRef.current = setTimeout(doSave, AUTOSAVE_DEBOUNCE_MS)
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges])
+  }, [nodes, edges, doSave])
+
+  // Flush pending changes on window unload
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+        const currentSnapshot = JSON.stringify({
+          nodes: nodesRef.current,
+          edges: edgesRef.current,
+        })
+        if (currentSnapshot !== lastSavedSnapshotRef.current) {
+          fetch(`/api/projects/${projectIdRef.current}/canvas`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: currentSnapshot,
+            keepalive: true,
+          }).catch(() => {})
+        }
+      }
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+  }, [])
 
   const save = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
