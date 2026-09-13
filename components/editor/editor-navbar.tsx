@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   LayoutTemplate,
   PanelLeftClose,
@@ -25,28 +25,28 @@ interface EditorNavbarProps {
   isOpen: boolean
   onToggle: () => void
   projectName?: string
+  saveStatus?: SaveStatus
+  onSave?: () => void
   isAiSidebarOpen?: boolean
   onToggleAiSidebar?: () => void
   onOpenShareDialog?: () => void
   onOpenTemplates?: () => void
-  onOpenExportDialog?: () => void
   onOpenHistoryDialog?: () => void
-  saveStatus?: SaveStatus
-  onSave?: () => void
+  onOpenExportDialog?: () => void
 }
 
 export function EditorNavbar({
   isOpen,
   onToggle,
   projectName,
+  saveStatus,
+  onSave,
   isAiSidebarOpen = false,
   onToggleAiSidebar,
   onOpenShareDialog,
   onOpenTemplates,
-  onOpenExportDialog,
   onOpenHistoryDialog,
-  saveStatus,
-  onSave,
+  onOpenExportDialog,
 }: EditorNavbarProps) {
   const [currentTheme, setCurrentTheme] = useState<AppTheme>(() => {
     if (typeof window !== "undefined") {
@@ -58,10 +58,32 @@ export function EditorNavbar({
     return "dark"
   })
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
+  const themeMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", currentTheme)
   }, [currentTheme])
+
+  // Dismiss Theme switcher popover on Escape or click outside
+  useEffect(() => {
+    if (!themeMenuOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setThemeMenuOpen(false)
+      }
+    }
+    const handleClickOutside = (e: MouseEvent) => {
+      if (themeMenuRef.current && !themeMenuRef.current.contains(e.target as Node)) {
+        setThemeMenuOpen(false)
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    window.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+      window.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [themeMenuOpen])
 
   const handleSelectTheme = (theme: AppTheme) => {
     setCurrentTheme(theme)
@@ -157,7 +179,15 @@ export function EditorNavbar({
             ) : null}
 
             {/* Theme Dropdown Switcher */}
-            <div className="relative">
+            <div
+              ref={themeMenuRef}
+              className="relative"
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setThemeMenuOpen(false)
+                }
+              }}
+            >
               <Button
                 variant="outline"
                 size="sm"
