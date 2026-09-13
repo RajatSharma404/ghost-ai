@@ -8,8 +8,74 @@ function sanitizeLabel(label: string): string {
   return label.replace(/"/g, "'").trim()
 }
 
+function isNodeInsideGroup(node: CanvasNode, group: CanvasNode): boolean {
+  const gx = group.position.x
+  const gy = group.position.y
+  const gw = group.width ?? 320
+  const gh = group.height ?? 220
+
+  const nx = node.position.x
+  const ny = node.position.y
+
+  return nx >= gx && nx <= gx + gw && ny >= gy && ny <= gy + gh
+}
+
+function renderMermaidNode(node: CanvasNode): string[] {
+  const nid = sanitizeId(node.id)
+  const data = node.data as { label?: string; shape?: string; icon?: string }
+  const label = sanitizeLabel(data.label || "Node")
+  const iconPrefix = data.icon ? `[${data.icon.toUpperCase()}] ` : ""
+  const fullLabel = `${iconPrefix}${label}`
+  const shape = data.shape ?? "rectangle"
+
+  let nodeSyntax = `${nid}["${fullLabel}"]`
+  if (shape === "cylinder" || label.toLowerCase().includes("database") || label.toLowerCase().includes("db")) {
+    nodeSyntax = `${nid}[("${fullLabel}")]`
+  } else if (shape === "diamond") {
+    nodeSyntax = `${nid}{"${fullLabel}"}`
+  } else if (shape === "circle") {
+    nodeSyntax = `${nid}(("${fullLabel}"))`
+  } else if (shape === "pill") {
+    nodeSyntax = `${nid}(["${fullLabel}"])`
+  } else if (shape === "hexagon") {
+    nodeSyntax = `${nid}{{"${fullLabel}"}}`
+  }
+
+  const lines = [nodeSyntax]
+  if (
+    label.toLowerCase().includes("db") ||
+    label.toLowerCase().includes("postgres") ||
+    label.toLowerCase().includes("redis") ||
+    label.toLowerCase().includes("sql")
+  ) {
+    lines.push(`class ${nid} db;`)
+  } else if (
+    label.toLowerCase().includes("kafka") ||
+    label.toLowerCase().includes("queue") ||
+    label.toLowerCase().includes("event")
+  ) {
+    lines.push(`class ${nid} queue;`)
+  }
+  return lines
+}
+
+function renderPlantUmlNode(node: CanvasNode): string {
+  const nid = sanitizeId(node.id)
+  const data = node.data as { label?: string; icon?: string; shape?: string }
+  const label = sanitizeLabel(data.label || "Component")
+  const l = label.toLowerCase()
+
+  if (l.includes("db") || l.includes("postgres") || l.includes("redis") || l.includes("sql")) {
+    return `database "${label}" as ${nid}`
+  } else if (l.includes("kafka") || l.includes("queue") || l.includes("event") || l.includes("sqs")) {
+    return `queue "${label}" as ${nid}`
+  }
+  return `rectangle "${label}" as ${nid}`
+}
+
 /**
- * Generates valid Mermaid.js flowchart markdown from canvas nodes & edges
+ * Generates valid Mermaid.js flowchart markdown from canvas nodes & edges,
+ * with spatial containment nesting inside group subgraphs.
  */
 export function generateMermaid(
   nodes: CanvasNode[],
@@ -29,50 +95,37 @@ export function generateMermaid(
 
   const groupNodes = nodes.filter((n) => n.type === "groupNode")
   const regularNodes = nodes.filter((n) => n.type !== "groupNode")
+  const assignedNodes = new Set<string>()
 
-  // Subgraphs for group nodes
+  // Subgraphs for group nodes with spatially enclosed children
   for (const group of groupNodes) {
     const gid = sanitizeId(group.id)
     const gData = group.data as { label?: string; subtitle?: string }
     const title = sanitizeLabel(gData.label || "Boundary Group")
     const subtitle = gData.subtitle ? ` (${sanitizeLabel(gData.subtitle)})` : ""
     lines.push(`  subgraph ${gid} ["${title}${subtitle}"]`)
-    lines.push(`    %% Contained nodes`)
+
+    const memberNodes = regularNodes.filter((rn) => isNodeInsideGroup(rn, group))
+    if (memberNodes.length > 0) {
+      for (const m of memberNodes) {
+        assignedNodes.add(m.id)
+        const rendered = renderMermaidNode(m)
+        rendered.forEach((rLine) => lines.push(`    ${rLine}`))
+      }
+    } else {
+      lines.push(`    %% (Empty boundary)`)
+    }
+
     lines.push(`  end`)
     lines.push(`  class ${gid} group;`)
     lines.push(``)
   }
 
-  // Regular Nodes
-  for (const node of regularNodes) {
-    const nid = sanitizeId(node.id)
-    const data = node.data as { label?: string; shape?: string; icon?: string }
-    const label = sanitizeLabel(data.label || "Node")
-    const iconPrefix = data.icon ? `[${data.icon.toUpperCase()}] ` : ""
-    const fullLabel = `${iconPrefix}${label}`
-    const shape = data.shape ?? "rectangle"
-
-    let nodeSyntax = `${nid}["${fullLabel}"]`
-    if (shape === "cylinder" || label.toLowerCase().includes("database") || label.toLowerCase().includes("db")) {
-      nodeSyntax = `${nid}[("${fullLabel}")]`
-    } else if (shape === "diamond") {
-      nodeSyntax = `${nid}{"${fullLabel}"}`
-    } else if (shape === "circle") {
-      nodeSyntax = `${nid}(("${fullLabel}"))`
-    } else if (shape === "pill") {
-      nodeSyntax = `${nid}(["${fullLabel}"])`
-    } else if (shape === "hexagon") {
-      nodeSyntax = `${nid}{{"${fullLabel}"}}`
-    }
-
-    lines.push(`  ${nodeSyntax}`)
-
-    // Apply color class if database or queue
-    if (label.toLowerCase().includes("db") || label.toLowerCase().includes("postgres") || label.toLowerCase().includes("redis") || label.toLowerCase().includes("sql")) {
-      lines.push(`  class ${nid} db;`)
-    } else if (label.toLowerCase().includes("kafka") || label.toLowerCase().includes("queue") || label.toLowerCase().includes("event")) {
-      lines.push(`  class ${nid} queue;`)
-    }
+  // Regular nodes not assigned to any group
+  const unassignedNodes = regularNodes.filter((rn) => !assignedNodes.has(rn.id))
+  for (const node of unassignedNodes) {
+    const rendered = renderMermaidNode(node)
+    rendered.forEach((rLine) => lines.push(`  ${rLine}`))
   }
 
   lines.push(``)
@@ -95,7 +148,7 @@ export function generateMermaid(
 }
 
 /**
- * Generates valid PlantUML architecture diagram code
+ * Generates valid PlantUML architecture diagram code with nested packages
  */
 export function generatePlantUML(
   nodes: CanvasNode[],
@@ -131,29 +184,27 @@ export function generatePlantUML(
 
   const groupNodes = nodes.filter((n) => n.type === "groupNode")
   const regularNodes = nodes.filter((n) => n.type !== "groupNode")
+  const assignedNodes = new Set<string>()
 
   for (const group of groupNodes) {
     const gid = sanitizeId(group.id)
     const gData = group.data as { label?: string; subtitle?: string }
     const title = sanitizeLabel(gData.label || "Boundary Group")
     lines.push(`package "${title}" as ${gid} {`)
+
+    const memberNodes = regularNodes.filter((rn) => isNodeInsideGroup(rn, group))
+    for (const m of memberNodes) {
+      assignedNodes.add(m.id)
+      lines.push(`  ${renderPlantUmlNode(m)}`)
+    }
+
     lines.push(`}`)
     lines.push(``)
   }
 
-  for (const node of regularNodes) {
-    const nid = sanitizeId(node.id)
-    const data = node.data as { label?: string; icon?: string; shape?: string }
-    const label = sanitizeLabel(data.label || "Component")
-    const l = label.toLowerCase()
-
-    if (l.includes("db") || l.includes("postgres") || l.includes("redis") || l.includes("sql")) {
-      lines.push(`database "${label}" as ${nid}`)
-    } else if (l.includes("kafka") || l.includes("queue") || l.includes("event") || l.includes("sqs")) {
-      lines.push(`queue "${label}" as ${nid}`)
-    } else {
-      lines.push(`rectangle "${label}" as ${nid}`)
-    }
+  const unassignedNodes = regularNodes.filter((rn) => !assignedNodes.has(rn.id))
+  for (const node of unassignedNodes) {
+    lines.push(renderPlantUmlNode(node))
   }
 
   lines.push(``)
