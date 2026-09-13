@@ -5,11 +5,13 @@ import { Handle, Position, NodeResizer, NodeToolbar } from "@xyflow/react"
 import type { NodeProps } from "@xyflow/react"
 import { useMutation } from "@liveblocks/react"
 import { LiveObject } from "@liveblocks/client"
-import { Sparkles, SlidersHorizontal } from "lucide-react"
+import { Sparkles, SlidersHorizontal, DollarSign } from "lucide-react"
 import type { CanvasRegularNode, NodeShape } from "@/types/canvas"
 import { NODE_COLORS } from "@/types/canvas"
 import { TechIcon } from "@/components/editor/canvas/tech-icons"
 import { IconPickerDialog } from "@/components/editor/canvas/icon-picker-dialog"
+import { useCanvasDisplay } from "@/components/editor/canvas/canvas-display-context"
+import { getCanvasNodeCost } from "@/lib/canvas-cost-estimator"
 import { cn } from "@/lib/utils"
 
 const DEFAULT_FILL = NODE_COLORS[0].fill
@@ -128,6 +130,9 @@ export function CanvasNodeComponent({ id, data, selected }: NodeProps<CanvasRegu
   const [isEditing, setIsEditing] = useState(false)
   const [iconPickerOpen, setIconPickerOpen] = useState(false)
   const editRef = useRef<HTMLDivElement>(null)
+
+  const { showCostBadges } = useCanvasDisplay()
+  const costEstimate = showCostBadges ? getCanvasNodeCost(data) : null
 
   const updateNodeLabel = useMutation(({ storage }, newLabel: string) => {
     const node = storage.get("flow").get("nodes").get(id)
@@ -272,6 +277,27 @@ export function CanvasNodeComponent({ id, data, selected }: NodeProps<CanvasRegu
           title={`Port: ${data.metadata.port}`}
         >
           :{data.metadata.port}
+        </div>
+      )}
+
+      {/* Cost Differential Badge */}
+      {costEstimate && (
+        <div
+          className={cn(
+            "pointer-events-none absolute -top-2.5 -left-2 z-20 flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-mono font-bold tracking-tight shadow-md backdrop-blur-md transition-all border",
+            costEstimate.badgeVariant === "emerald" &&
+              "bg-emerald-950/85 text-emerald-300 border-emerald-500/40 shadow-emerald-950/40",
+            costEstimate.badgeVariant === "blue" &&
+              "bg-blue-950/85 text-blue-300 border-blue-500/40 shadow-blue-950/40",
+            costEstimate.badgeVariant === "purple" &&
+              "bg-purple-950/85 text-purple-300 border-purple-500/40 shadow-purple-950/40",
+            costEstimate.badgeVariant === "amber" &&
+              "bg-amber-950/85 text-amber-300 border-amber-500/40 shadow-amber-950/40"
+          )}
+          title={`Estimated Monthly Cost: ${costEstimate.formatted} • ${costEstimate.tierDescription}`}
+        >
+          <DollarSign className="h-2.5 w-2.5 shrink-0 opacity-80" />
+          <span>{costEstimate.formatted}</span>
         </div>
       )}
 
