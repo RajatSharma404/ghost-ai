@@ -11,6 +11,10 @@ export async function GET(
   { params }: RouteParams
 ) {
   const { projectId } = await params
+  if (!projectId || projectId.length > 128) {
+    return Response.json({ error: "Invalid project ID" }, { status: 400 })
+  }
+
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     select: {
@@ -43,14 +47,21 @@ export async function GET(
     }
   }
 
-  return Response.json({
-    project: {
-      id: project.id,
-      name: project.name,
-      description: project.description,
-      createdAt: project.createdAt,
-      updatedAt: project.updatedAt,
+  return Response.json(
+    {
+      project: {
+        id: project.id,
+        name: project.name,
+        description: project.description,
+        createdAt: project.createdAt,
+        updatedAt: project.updatedAt,
+      },
+      canvas,
     },
-    canvas,
-  })
+    {
+      headers: {
+        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+      },
+    }
+  )
 }
