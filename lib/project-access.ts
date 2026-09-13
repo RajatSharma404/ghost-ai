@@ -6,13 +6,18 @@ export interface ProjectIdentity {
   primaryEmailAddress: string | null
 }
 
-export async function getCurrentProjectIdentity(): Promise<ProjectIdentity> {
+export interface ProjectIdentityWithUser extends ProjectIdentity {
+  user: Awaited<ReturnType<typeof currentUser>>
+}
+
+export async function getCurrentProjectIdentityWithUser(): Promise<ProjectIdentityWithUser> {
   const { userId } = await auth()
 
   if (!userId) {
     return {
       userId: null,
       primaryEmailAddress: null,
+      user: null,
     }
   }
 
@@ -22,7 +27,13 @@ export async function getCurrentProjectIdentity(): Promise<ProjectIdentity> {
     userId,
     primaryEmailAddress:
       user?.primaryEmailAddress?.emailAddress?.trim().toLowerCase() ?? null,
+    user,
   }
+}
+
+export async function getCurrentProjectIdentity(): Promise<ProjectIdentity> {
+  const { userId, primaryEmailAddress } = await getCurrentProjectIdentityWithUser()
+  return { userId, primaryEmailAddress }
 }
 
 export async function getAccessibleProject(
