@@ -178,6 +178,8 @@ export async function runIaCDirect(payload: {
     model: google(modelName),
     system: systemPrompt,
     prompt: context,
+    temperature: 0.1,
+    maxOutputTokens: 3500,
   })
 
   const code = cleanCodeOutput(result.text)
