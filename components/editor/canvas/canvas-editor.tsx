@@ -69,8 +69,30 @@ interface CanvasEditorProps {
 }
 
 export function CanvasEditor({ projectId, pendingTemplate, onTemplateImported, onSaveStatusChange, onSaveReady }: CanvasEditorProps) {
-  const { nodes, edges, onNodesChange, onEdgesChange, onDelete } =
+  const { nodes, edges, onNodesChange: lbOnNodesChange, onEdgesChange: lbOnEdgesChange, onDelete } =
     useLiveblocksFlow<CanvasNode, CanvasEdge>({ suspense: true })
+
+  const onNodesChange = useCallback(
+    (changes: Parameters<typeof lbOnNodesChange>[0]) => {
+      try {
+        lbOnNodesChange(changes)
+      } catch (err) {
+        console.warn("[CanvasEditor] onNodesChange error caught safely:", err)
+      }
+    },
+    [lbOnNodesChange]
+  )
+
+  const onEdgesChange = useCallback(
+    (changes: Parameters<typeof lbOnEdgesChange>[0]) => {
+      try {
+        lbOnEdgesChange(changes)
+      } catch (err) {
+        console.warn("[CanvasEditor] onEdgesChange error caught safely:", err)
+      }
+    },
+    [lbOnEdgesChange]
+  )
 
   const reactFlow = useReactFlow()
   const { screenToFlowPosition, zoomIn, zoomOut, fitView } = reactFlow
