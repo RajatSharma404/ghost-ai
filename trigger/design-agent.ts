@@ -2,35 +2,13 @@ import { task } from "@trigger.dev/sdk";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText, tool } from "ai";
 import { z } from "zod";
-import { LiveObject } from "@liveblocks/client";
-import type { LiveblocksNode, LiveblocksEdge } from "@liveblocks/react-flow";
+import { mutateFlow, type MutableFlow } from "@liveblocks/react-flow/node";
 import { getLiveblocks } from "@/lib/liveblocks";
 import { NODE_COLORS, SHAPE_DEFAULTS, NODE_SHAPES } from "@/types/canvas";
 import type { CanvasNode, CanvasEdge, NodeShape } from "@/types/canvas";
 
 const AI_USER_ID = "ghost-ai";
 const AI_USER_INFO = { name: "Ghost AI", avatar: "", color: "#6457f9" };
-
-const NODE_SYNC_CONFIG = {
-  selected: false,
-  dragging: false,
-  measured: false,
-  resizing: false,
-  position: "atomic" as const,
-  sourcePosition: "atomic" as const,
-  targetPosition: "atomic" as const,
-  extent: "atomic" as const,
-  origin: "atomic" as const,
-  handles: "atomic" as const,
-};
-
-const EDGE_SYNC_CONFIG = {
-  selected: false,
-  markerStart: "atomic" as const,
-  markerEnd: "atomic" as const,
-  label: "atomic" as const,
-  labelBgPadding: "atomic" as const,
-};
 
 const COLOR_NAMES = ["neutral", "blue", "purple", "orange", "red", "pink", "green", "teal"];
 
@@ -39,45 +17,42 @@ function buildSystemPrompt(): string {
     (c, i) => `  ${i} (${COLOR_NAMES[i]}): fill=${c.fill} text=${c.text}`
   ).join("\n");
 
-  return `You are Ghost AI, an expert system architect that generates technical architecture diagrams on a collaborative canvas.
+  return `You are Ghost AI, a world-class cloud architect that designs technical architecture diagrams on a collaborative canvas.
 
-ALLOWED SHAPES (use exact value):
-- rectangle  → services, APIs, microservices, components
-- cylinder   → databases, storage, caches
-- hexagon    → external systems, third-party services, boundaries
-- circle     → events, triggers, endpoints, user entry-points
-- diamond    → decision gateways, conditionals
-- pill       → processes, workflows, jobs
+ALLOWED SHAPES (use exact string):
+- rectangle  → backend services, APIs, microservices, application workers
+- cylinder   → databases, data warehouses, persistent storage, Redis caches
+- hexagon    → external systems, CDN, third-party APIs, authentication providers
+- circle     → client apps, browsers, mobile devices, user entrypoints
+- diamond    → load balancers, decision gateways, routing proxies
+- pill       → async queues, message brokers, streaming pipelines, background jobs
 
 COLOR PALETTE (colorIndex 0-7):
 ${colorGuide}
-Recommended mapping:
-- 1 (blue)   → APIs, services, servers
-- 7 (teal)   → databases, storage
-- 3 (orange) → message queues, brokers, async flows
-- 6 (green)  → success paths, healthy services, CDN
-- 2 (purple) → auth, security, identity
-- 5 (pink)   → user-facing UI, clients
-- 0 (neutral)→ generic / unclassified
+Semantic mapping:
+- 1 (blue)   → APIs, backend microservices, core servers
+- 7 (teal)   → databases (PostgreSQL, MongoDB, MySQL), storage
+- 3 (orange) → message queues (RabbitMQ, Kafka, SQS), background jobs
+- 6 (green)  → CDN (Cloudflare), ingress, edge caching, web frontend
+- 2 (purple) → auth & security (Cognito, Auth0, JWT, Vault)
+- 5 (pink)   → client devices, web/mobile UI
+- 4 (red)    → payment gateways, external billing, third-party webhooks
+- 0 (neutral)→ generic or unclassified utilities
 
-LAYOUT RULES:
-- Start top-left at approximately x=100, y=80
-- Horizontal gap between sibling nodes: 240-280px
-- Vertical gap between rows: 160-200px
-- Group related nodes in horizontal rows; use vertical rows for sequential flows
-- Edge IDs must be unique, e.g. "edge-api-auth", "edge-1"
-- Node IDs must be unique short slugs, e.g. "api-gateway", "user-db", "auth-service"
+2D CANVAS LAYOUT TIERS (Clean left-to-right flow):
+- Tier 1 (x: 80 - 140): Client & Edge (Web / Mobile Apps, Cloudflare CDN, DNS)
+- Tier 2 (x: 360 - 420): Ingress & API Gateway (Reverse Proxy, Load Balancer, API Gateway)
+- Tier 3 (x: 640 - 700): Application & Microservices (Auth, Order Service, User Service, Payment Service)
+- Tier 4 (x: 940 - 1000): Persistence & Async (PostgreSQL, Redis Cache, Kafka/RabbitMQ, S3 Storage)
+- Vertical spacing: start at y=100, space sibling components in the same tier by 140-180px vertically (y=100, y=260, y=420, etc.).
 
-GENERATION RULES:
-- Create 5-12 nodes; do not overcrowd
-- Add edges to show data/request flow
-- Prefer clear left→right or top→bottom flows
-- When the canvas already has nodes, extend or modify instead of replacing unless asked
-
-INSTRUCTIONS:
-- Call addNode for each node you want to place on the canvas
-- Call addEdge for each connection between nodes
-- Call finalizeDesign last with a 1-2 sentence summary of what was designed`;
+CRITICAL TOOL CALLING RULE:
+- To design, create, or build an architecture, YOU MUST CALL THE \`generateArchitecture\` TOOL.
+- DO NOT call \`addNode\` one-by-one when creating an architecture. One-by-one calls will only output a single block.
+- \`generateArchitecture\` accepts the COMPLETE diagram at once: all 5 to 10 nodes representing the full multi-tier system AND all connecting directed edges.
+- Ensure every edge has valid \`source\` and \`target\` matching the node \`id\`s.
+- If there are existing nodes on the canvas and the user wants a new architecture from scratch, set \`clearCanvas: true\`. If extending, set \`clearCanvas: false\`.
+- For minor incremental edits to an existing diagram (e.g. "move the database", "delete Redis", "update label"), use the individual tools (moveNode, deleteNode, updateNodeData, addNode, addEdge).`;
 }
 
 function clampColor(idx: number): number {
@@ -85,8 +60,41 @@ function clampColor(idx: number): number {
 }
 
 const canvasTools = {
+  generateArchitecture: tool({
+    description:
+      "Generate a complete multi-tier system architecture diagram on the canvas with all components (nodes) and all connecting data/request flows (edges). ALWAYS use this tool when asked to design, build, create, or generate an architecture.",
+    inputSchema: z.object({
+      summary: z.string().describe("1-2 sentence high-level summary of the architecture"),
+      clearCanvas: z
+        .boolean()
+        .optional()
+        .describe("Set to true if creating a new architecture from scratch to replace existing nodes; false if extending"),
+      nodes: z
+        .array(
+          z.object({
+            id: z.string().describe('Unique slug ID e.g. "cdn", "client-web", "api-gateway", "auth-service", "order-service", "user-db", "redis"'),
+            label: z.string().describe("Descriptive label e.g. 'Cloudflare CDN', 'Next.js Frontend', 'API Gateway', 'PostgreSQL DB'"),
+            shape: z.enum(NODE_SHAPES).describe("Node shape: rectangle, cylinder, hexagon, circle, diamond, pill"),
+            colorIndex: z.number().int().min(0).max(7).describe("Color palette index 0-7"),
+            x: z.number().describe("X coordinate in pixels"),
+            y: z.number().describe("Y coordinate in pixels"),
+          })
+        )
+        .describe("Complete list of nodes representing all tiers of the architecture (typically 5 to 10 nodes)"),
+      edges: z
+        .array(
+          z.object({
+            id: z.string().describe('Unique edge ID e.g. "edge-cdn-web", "edge-web-api", "edge-api-db"'),
+            source: z.string().describe("Source node ID matching a node's id"),
+            target: z.string().describe("Target node ID matching a node's id"),
+            label: z.string().optional().describe("Optional protocol or flow description e.g. 'HTTPS', 'gRPC', 'SQL', 'Events'"),
+          })
+        )
+        .describe("Directed edges interconnecting all components to illustrate request and data flows"),
+    }),
+  }),
   addNode: tool({
-    description: "Add a new node to the canvas",
+    description: "Add a single new node to the canvas (use for minor incremental edits)",
     inputSchema: z.object({
       id: z.string().describe('Unique slug ID e.g. "api-gateway", "user-db"'),
       label: z.string().describe("Display label for the node"),
@@ -196,13 +204,13 @@ export async function runDesignAgentDirect(payload: {
       const flow = parsed?.flow as Record<string, unknown> | undefined
       const nodeCount = flow?.nodes ? Object.keys(flow.nodes as object).length : 0
       if (nodeCount > 0) {
-        canvasContext = `Canvas has ${nodeCount} existing node(s). Current state:\n${JSON.stringify(flow, null, 2)}\nExtend or modify based on the request; only clear if explicitly asked.`
+        canvasContext = `Canvas has ${nodeCount} existing node(s). Current state:\n${JSON.stringify(flow, null, 2)}\nExtend or modify based on the request; if the user is asking to design/build a new architecture from scratch, set clearCanvas: true.`
       }
     } catch {
       // No storage yet — treat as empty
     }
 
-    const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash"
+    const modelName = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite"
     const result = await generateText({
       model: google(modelName),
       system: buildSystemPrompt(),
@@ -214,29 +222,40 @@ export async function runDesignAgentDirect(payload: {
     const toolCalls = result.steps.flatMap((s) => s.toolCalls) as ToolCall[]
     const actionCalls = toolCalls.filter((c) => c.toolName !== "finalizeDesign")
     const finalizeCall = toolCalls.find((c) => c.toolName === "finalizeDesign")
-    const summary =
-      (finalizeCall?.input as { summary?: string } | undefined)?.summary ??
-      "Design applied to canvas."
+    const genArchCall = toolCalls.find((c) => c.toolName === "generateArchitecture")
 
-    const addCount = actionCalls.filter((c) => c.toolName === "addNode").length
+    const summary =
+      (genArchCall?.input as { summary?: string } | undefined)?.summary ??
+      (finalizeCall?.input as { summary?: string } | undefined)?.summary ??
+      "Architecture applied to canvas."
+
+    let totalNodesCount = actionCalls.filter((c) => c.toolName === "addNode").length
+    if (genArchCall) {
+      const nodes = (genArchCall.input as { nodes?: unknown[] })?.nodes
+      if (Array.isArray(nodes)) {
+        totalNodesCount += nodes.length
+      }
+    }
+
     await lb
       .broadcastEvent(payload.roomId, {
         type: "ai-status",
-        message: `Placing ${addCount} node${addCount !== 1 ? "s" : ""} on the canvas…`,
+        message:
+          totalNodesCount > 0
+            ? `Placing ${totalNodesCount} component${totalNodesCount !== 1 ? "s" : ""} on the canvas…`
+            : "Applying changes to canvas…",
         status: "thinking",
       })
       .catch(() => {})
 
-    await lb.mutateStorage(payload.roomId, ({ root }) => {
-      const flow = root.get("flow")
-      if (!flow) return
-      const nodes = flow.get("nodes")
-      const edges = flow.get("edges")
-
-      for (const call of actionCalls) {
-        applyToolCall(call, nodes, edges)
+    await mutateFlow<CanvasNode, CanvasEdge>(
+      { client: lb, roomId: payload.roomId },
+      (flow) => {
+        for (const call of actionCalls) {
+          applyToolCall(call, flow)
+        }
       }
-    })
+    )
 
     await lb
       .broadcastEvent(payload.roomId, {
@@ -276,21 +295,73 @@ export const designAgent = task({
   },
 })
 
-type LiveNodeLike = { get(k: string): unknown; set(k: string, v: unknown): void };
-type LiveMapLike<T> = {
-  get(id: string): T | undefined;
-  set(id: string, value: T): void;
-  delete(id: string): boolean;
-};
-
-function applyToolCall(
-  call: ToolCall,
-  nodes: LiveMapLike<LiveblocksNode<CanvasNode>>,
-  edges: LiveMapLike<LiveblocksEdge<CanvasEdge>>
-) {
+function applyToolCall(call: ToolCall, flow: MutableFlow<CanvasNode, CanvasEdge>) {
   const input = call.input;
 
   switch (call.toolName) {
+    case "generateArchitecture": {
+      const { nodes, edges, clearCanvas } = input as {
+        summary?: string;
+        clearCanvas?: boolean;
+        nodes: Array<{
+          id: string;
+          label: string;
+          shape: NodeShape;
+          colorIndex: number;
+          x: number;
+          y: number;
+        }>;
+        edges: Array<{
+          id: string;
+          source: string;
+          target: string;
+          label?: string;
+        }>;
+      };
+
+      if (clearCanvas && flow.nodes.length > 0) {
+        flow.removeNodes(flow.nodes.map((n) => n.id));
+        flow.removeEdges(flow.edges.map((e) => e.id));
+      }
+
+      if (Array.isArray(nodes)) {
+        for (const n of nodes) {
+          const ci = clampColor(n.colorIndex);
+          const color = NODE_COLORS[ci];
+          const size = SHAPE_DEFAULTS[n.shape] ?? SHAPE_DEFAULTS.rectangle;
+          flow.addNode({
+            id: n.id,
+            type: "canvasNode",
+            position: { x: n.x, y: n.y },
+            data: { label: n.label, color: color.fill, textColor: color.text, shape: n.shape },
+            width: size.width,
+            height: size.height,
+          });
+        }
+      }
+
+      if (Array.isArray(edges)) {
+        for (const e of edges) {
+          flow.addEdge({
+            id: e.id,
+            type: "canvasEdge",
+            source: e.source,
+            target: e.target,
+            sourceHandle: null,
+            targetHandle: null,
+            data: { label: e.label ?? "" },
+            markerEnd: {
+              type: "arrowclosed",
+              color: "rgba(255,255,255,0.4)",
+              width: 16,
+              height: 16,
+            },
+          });
+        }
+      }
+      break;
+    }
+
     case "addNode": {
       const { id, label, shape, colorIndex, x, y } = input as {
         id: string;
@@ -303,37 +374,26 @@ function applyToolCall(
       const ci = clampColor(colorIndex);
       const color = NODE_COLORS[ci];
       const size = SHAPE_DEFAULTS[shape] ?? SHAPE_DEFAULTS.rectangle;
-      nodes.set(
+      flow.addNode({
         id,
-        LiveObject.from(
-          {
-            id,
-            type: "canvasNode",
-            position: { x, y },
-            data: { label, color: color.fill, textColor: color.text, shape },
-            width: size.width,
-            height: size.height,
-          },
-          NODE_SYNC_CONFIG
-        ) as unknown as LiveblocksNode<CanvasNode>
-      );
+        type: "canvasNode",
+        position: { x, y },
+        data: { label, color: color.fill, textColor: color.text, shape },
+        width: size.width,
+        height: size.height,
+      });
       break;
     }
 
     case "moveNode": {
       const { id, x, y } = input as { id: string; x: number; y: number };
-      const n = nodes.get(id) as LiveNodeLike | undefined;
-      if (n) n.set("position", { x, y });
+      flow.updateNode(id, { position: { x, y } });
       break;
     }
 
     case "resizeNode": {
       const { id, width, height } = input as { id: string; width: number; height: number };
-      const n = nodes.get(id) as LiveNodeLike | undefined;
-      if (n) {
-        n.set("width", width);
-        n.set("height", height);
-      }
+      flow.updateNode(id, { width, height });
       break;
     }
 
@@ -344,24 +404,23 @@ function applyToolCall(
         shape?: NodeShape;
         colorIndex?: number;
       };
-      const n = nodes.get(id) as LiveNodeLike | undefined;
-      if (n) {
-        const data = n.get("data") as LiveNodeLike | undefined;
-        if (!data) break;
-        if (label !== undefined) data.set("label", label);
-        if (shape !== undefined) data.set("shape", shape);
+      flow.updateNodeData(id, (prev) => {
+        const next = { ...prev };
+        if (label !== undefined) next.label = label;
+        if (shape !== undefined) next.shape = shape;
         if (colorIndex !== undefined) {
           const ci = clampColor(colorIndex);
-          data.set("color", NODE_COLORS[ci].fill);
-          data.set("textColor", NODE_COLORS[ci].text);
+          next.color = NODE_COLORS[ci].fill;
+          next.textColor = NODE_COLORS[ci].text;
         }
-      }
+        return next;
+      });
       break;
     }
 
     case "deleteNode": {
       const { id } = input as { id: string };
-      nodes.delete(id);
+      flow.removeNode(id);
       break;
     }
 
@@ -372,34 +431,29 @@ function applyToolCall(
         target: string;
         label?: string;
       };
-      edges.set(
+      flow.addEdge({
         id,
-        LiveObject.from(
-          {
-            id,
-            type: "canvasEdge",
-            source,
-            target,
-            sourceHandle: null as string | null,
-            targetHandle: null as string | null,
-            data: { label: label ?? "" },
-            markerEnd: {
-              type: "arrowclosed",
-              color: "rgba(255,255,255,0.4)",
-              width: 16,
-              height: 16,
-            },
-          },
-          EDGE_SYNC_CONFIG
-        ) as unknown as LiveblocksEdge<CanvasEdge>
-      );
+        type: "canvasEdge",
+        source,
+        target,
+        sourceHandle: null,
+        targetHandle: null,
+        data: { label: label ?? "" },
+        markerEnd: {
+          type: "arrowclosed",
+          color: "rgba(255,255,255,0.4)",
+          width: 16,
+          height: 16,
+        },
+      });
       break;
     }
 
     case "deleteEdge": {
       const { id } = input as { id: string };
-      edges.delete(id);
+      flow.removeEdge(id);
       break;
     }
   }
 }
+
