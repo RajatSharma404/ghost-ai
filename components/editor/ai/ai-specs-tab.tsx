@@ -203,49 +203,51 @@ export function AiSpecsTab({ roomId, projectId, isOpen }: AiSpecsTabProps) {
       <Dialog open={specModalOpen} onOpenChange={(open) => { if (!open) handleModalClose() }}>
         <DialogContent
           showCloseButton
-          className="sm:max-w-3xl max-w-3xl border-border-default bg-bg-surface p-6"
+          className="sm:max-w-3xl max-w-3xl border-border-default bg-bg-surface p-0 overflow-hidden flex flex-col max-h-[85vh]"
         >
-          <DialogHeader>
-            <DialogTitle className="pr-6 text-sm font-medium text-text-primary">
+          <div className="flex shrink-0 items-center justify-between border-b border-border-default px-6 py-4">
+            <DialogTitle className="pr-6 text-sm font-semibold text-text-primary">
               {selectedSpec ? getFilename(selectedSpec.filePath) : "Spec Preview"}
             </DialogTitle>
-          </DialogHeader>
+          </div>
 
-          <ScrollArea className="max-h-[60vh] rounded-xl border border-border-subtle bg-bg-elevated">
-            <div className="p-4">
-              {specContentLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-5 w-5 animate-spin text-text-muted" />
-                </div>
-              ) : specContent ? (
-                <div
-                  className={cn(
-                    "text-sm text-text-secondary leading-relaxed",
-                    "[&_h1]:text-base [&_h1]:font-bold [&_h1]:text-text-primary [&_h1]:mb-3 [&_h1]:mt-0",
-                    "[&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-text-primary [&_h2]:mb-2 [&_h2]:mt-4",
-                    "[&_h3]:text-xs [&_h3]:font-semibold [&_h3]:text-text-secondary [&_h3]:mb-1.5 [&_h3]:mt-3",
-                    "[&_p]:mb-2 [&_p]:leading-relaxed",
-                    "[&_ul]:list-disc [&_ul]:pl-4 [&_ul]:mb-2",
-                    "[&_ol]:list-decimal [&_ol]:pl-4 [&_ol]:mb-2",
-                    "[&_li]:mb-1",
-                    "[&_code]:font-mono [&_code]:text-xs [&_code]:bg-bg-subtle [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-accent-ai-text",
-                    "[&_pre]:bg-bg-subtle [&_pre]:p-3 [&_pre]:rounded-xl [&_pre]:mb-2 [&_pre]:overflow-x-auto",
-                    "[&_pre_code]:bg-transparent [&_pre_code]:p-0",
-                    "[&_strong]:font-semibold [&_strong]:text-text-primary",
-                    "[&_blockquote]:border-l-2 [&_blockquote]:border-border-subtle [&_blockquote]:pl-3 [&_blockquote]:text-text-muted [&_blockquote]:italic"
-                  )}
-                >
-                  <ReactMarkdown>{specContent}</ReactMarkdown>
-                </div>
-              ) : (
-                <p className="py-8 text-center text-xs text-text-muted">
-                  Failed to load spec content.
-                </p>
-              )}
-            </div>
-          </ScrollArea>
+          <div className="flex-1 min-h-0 min-w-0 p-6 overflow-hidden flex flex-col">
+            <ScrollArea className="h-[55vh] max-h-[55vh] w-full min-w-0 max-w-full rounded-xl border border-border-subtle bg-bg-elevated">
+              <div className="p-4">
+                {specContentLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-5 w-5 animate-spin text-text-muted" />
+                  </div>
+                ) : specContent ? (
+                  <div
+                    className={cn(
+                      "text-sm text-text-secondary leading-relaxed",
+                      "[&_h1]:text-base [&_h1]:font-bold [&_h1]:text-text-primary [&_h1]:mb-3 [&_h1]:mt-0",
+                      "[&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-text-primary [&_h2]:mb-2 [&_h2]:mt-4",
+                      "[&_h3]:text-xs [&_h3]:font-semibold [&_h3]:text-text-secondary [&_h3]:mb-1.5 [&_h3]:mt-3",
+                      "[&_p]:mb-2 [&_p]:leading-relaxed",
+                      "[&_ul]:list-disc [&_ul]:pl-4 [&_ul]:mb-2",
+                      "[&_ol]:list-decimal [&_ol]:pl-4 [&_ol]:mb-2",
+                      "[&_li]:mb-1",
+                      "[&_code]:font-mono [&_code]:text-xs [&_code]:bg-bg-subtle [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-accent-ai-text",
+                      "[&_pre]:bg-bg-subtle [&_pre]:p-3 [&_pre]:rounded-xl [&_pre]:mb-2 [&_pre]:overflow-x-auto",
+                      "[&_pre_code]:bg-transparent [&_pre_code]:p-0",
+                      "[&_strong]:font-semibold [&_strong]:text-text-primary",
+                      "[&_blockquote]:border-l-2 [&_blockquote]:border-border-subtle [&_blockquote]:pl-3 [&_blockquote]:text-text-muted [&_blockquote]:italic"
+                    )}
+                  >
+                    <ReactMarkdown>{specContent}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <p className="py-8 text-center text-xs text-text-muted">
+                    Failed to load spec content.
+                  </p>
+                )}
+              </div>
+            </ScrollArea>
+          </div>
 
-          <div className="flex justify-end border-t border-border-default pt-3">
+          <div className="flex shrink-0 justify-end border-t border-border-default bg-bg-subtle/30 px-6 py-3">
             <Button
               size="sm"
               variant="outline"
