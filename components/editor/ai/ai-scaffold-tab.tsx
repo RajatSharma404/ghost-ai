@@ -196,12 +196,12 @@ export function AiScaffoldTab({ roomId, projectId }: AiScaffoldTabProps) {
       >
         <DialogContent
           showCloseButton
-          className="sm:max-w-4xl max-w-4xl border-border-default bg-bg-surface p-6"
+          className="sm:max-w-4xl max-w-4xl border-border-default bg-bg-surface p-0 overflow-hidden flex flex-col max-h-[85vh]"
         >
-          <DialogHeader>
+          <div className="flex shrink-0 items-center justify-between border-b border-border-default px-6 py-4">
             <div className="flex items-center gap-2 pr-6">
               <FileCode className="h-4 w-4 text-accent-ai-text" />
-              <DialogTitle className="text-sm font-medium text-text-primary">
+              <DialogTitle className="text-sm font-semibold text-text-primary">
                 API Scaffolding & OpenAPI 3.0
               </DialogTitle>
               {scaffoldResult?.framework && (
@@ -210,9 +210,9 @@ export function AiScaffoldTab({ roomId, projectId }: AiScaffoldTabProps) {
                 </span>
               )}
             </div>
-          </DialogHeader>
+          </div>
 
-          <div className="flex gap-2 border-b border-border-subtle pb-2 text-xs">
+          <div className="flex shrink-0 gap-2 border-b border-border-subtle bg-bg-subtle/30 px-6 py-2 text-xs">
             <button
               type="button"
               onClick={() => setScaffoldModalTab("openapi")}
@@ -239,17 +239,19 @@ export function AiScaffoldTab({ roomId, projectId }: AiScaffoldTabProps) {
             </button>
           </div>
 
-          <ScrollArea className="max-h-[60vh] rounded-xl border border-border-subtle bg-bg-elevated font-mono text-xs">
-            <pre className="overflow-x-auto p-4 leading-relaxed text-text-primary whitespace-pre">
-              <code>
-                {scaffoldModalTab === "openapi"
-                  ? scaffoldResult?.openapiYaml
-                  : scaffoldResult?.routesCode}
-              </code>
-            </pre>
-          </ScrollArea>
+          <div className="flex-1 min-h-0 min-w-0 p-6 overflow-hidden flex flex-col">
+            <ScrollArea className="h-[55vh] max-h-[55vh] w-full min-w-0 max-w-full rounded-xl border border-border-subtle bg-bg-elevated">
+              <pre className="overflow-x-auto p-4 font-mono text-xs leading-relaxed text-text-primary whitespace-pre">
+                <code>
+                  {scaffoldModalTab === "openapi"
+                    ? scaffoldResult?.openapiYaml
+                    : scaffoldResult?.routesCode}
+                </code>
+              </pre>
+            </ScrollArea>
+          </div>
 
-          <div className="flex justify-end gap-2 border-t border-border-default pt-3">
+          <div className="flex shrink-0 justify-end gap-2 border-t border-border-default bg-bg-subtle/30 px-6 py-3">
             <Button
               size="sm"
               variant="outline"
